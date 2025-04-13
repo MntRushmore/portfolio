@@ -25,8 +25,8 @@ export default function BootSequence() {
       "Loading System Files...",
       "HIMEM.SYS loaded",
       "MOUSE.SYS loaded",
-      "Starting RetroOS v1.0...",
-      "Welcome to MonoOS",
+      "Starting PortfolioOS v1.0...",
+      "Welcome to Rushil Chopra's Portfolio",
     ]
 
     let currentIndex = 0
