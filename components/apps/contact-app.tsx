@@ -6,7 +6,7 @@ export default function ContactApp() {
         <p className="text-xs text-gray-600">Please fill out this form to get in touch</p>
       </div>
 
-      <div className="border border-gray-400 p-2 bg-gray-100">
+      <div className="border border-gray-400 p-2 bg-black text-white">
         <form className="space-y-3">
           <div className="space-y-1">
             <label className="text-sm font-bold block">Your Name:</label>
@@ -64,11 +64,7 @@ export default function ContactApp() {
         <div className="mt-2 space-y-2">
           <div className="flex items-center gap-2">
             <span className="text-lg">📧</span>
-            <span className="text-sm">email@example.com</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-lg">☎️</span>
-            <span className="text-sm">(123) 456-7890</span>
+            <span className="text-sm">rushilchopra@gmail.com</span>
           </div>
           <div className="flex items-center gap-2">
             <span className="text-lg">📍</span>

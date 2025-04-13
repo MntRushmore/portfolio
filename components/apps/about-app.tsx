@@ -6,13 +6,13 @@ export default function AboutApp() {
           <span className="text-4xl">👤</span>
         </div>
         <h1 className="text-xl font-bold mt-2 text-white">Rushil Chopra</h1>
-        <p className="text-sm text-gray-400">Student & Non-Profit Owner</p>
+        <p className="text-sm text-gray-400">Student & Non-Profit Co-Founder</p>
       </div>
 
       <div className="bg-gray-800 border border-white p-2">
         <h2 className="font-bold underline text-white">About Me:</h2>
         <p className="text-sm mt-1 text-white">
-          Hello! I'm Rushil, a passionate student and the owner of a non-profit organization. I love exploring technology and design, and I'm always eager to learn new things. In my free time, I enjoy working on personal projects and hanging out with family!
+          Hello! I'm Rushil, a passionate student and the co-founder of a non-profit organization. I love exploring technology, and I'm always eager to learn new things. In my free time, I enjoy working on personal projects and hanging out with family!
         </p>
       </div>
 
@@ -64,7 +64,6 @@ export default function AboutApp() {
           <li>Business</li>
           <li>Aviation</li>
           <li>Web Development</li>
-          <li>Game development</li>
           <li>Yoga</li>
           <li>Volunteering</li>
           <li>Robotics</li>
