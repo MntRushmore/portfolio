@@ -8,7 +8,7 @@ WORKDIR /app
 COPY package*.json ./
 
 # Install dependencies
-RUN npm install
+RUN npm install --legacy-peer-deps
 
 # Copy the rest of the app's files
 COPY . .
@@ -21,3 +21,4 @@ EXPOSE 3000
 
 # Start the Next.js app
 CMD ["npm", "run", "start"]
+
