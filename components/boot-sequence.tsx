@@ -60,7 +60,7 @@ export default function BootSequence() {
       {bootStage === 0 && (
         <div className="max-w-md w-full">
           <div className="text-sm whitespace-pre-line">
-            {bootText.map((text, index) => (
+            {bootText.map((text: string, index: number) => (
               <div key={index} className="mb-1">
                 {text}
               </div>
