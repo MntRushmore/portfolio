@@ -1,5 +1,3 @@
-// Restore the retro about app
-
 export default function AboutApp() {
   return (
     <div className="p-2 font-['MS_Sans_Serif',sans-serif] space-y-4 bg-gray-900 border border-white h-full overflow-auto">
@@ -7,15 +5,14 @@ export default function AboutApp() {
         <div className="w-24 h-24 mx-auto bg-gray-800 border-2 border-white rounded-full flex items-center justify-center">
           <span className="text-4xl">👤</span>
         </div>
-        <h1 className="text-xl font-bold mt-2 text-white">Your Name</h1>
-        <p className="text-sm text-gray-400">Retro Web Developer</p>
+        <h1 className="text-xl font-bold mt-2 text-white">Rushil Chopra</h1>
+        <p className="text-sm text-gray-400">Student & Non-Profit Owner</p>
       </div>
 
       <div className="bg-gray-800 border border-white p-2">
         <h2 className="font-bold underline text-white">About Me:</h2>
         <p className="text-sm mt-1 text-white">
-          Hello! I'm a passionate web developer with a love for both modern and retro technologies. I create
-          user-friendly websites and applications with a focus on creative interfaces and solid functionality.
+          Hello! I'm Rushil, a passionate student and the owner of a non-profit organization. I love exploring technology and design, and I'm always eager to learn new things. In my free time, I enjoy working on personal projects and hanging out with family!
         </p>
       </div>
 
@@ -28,23 +25,35 @@ export default function AboutApp() {
           </div>
           <div className="flex items-center gap-1 text-sm text-white">
             <div className="w-3 h-3 bg-white"></div>
-            <span>JavaScript</span>
+            <span>Problem Solving</span>
           </div>
           <div className="flex items-center gap-1 text-sm text-white">
             <div className="w-3 h-3 bg-white"></div>
-            <span>React</span>
+            <span>Teaching Yoga</span>
           </div>
           <div className="flex items-center gap-1 text-sm text-white">
             <div className="w-3 h-3 bg-white"></div>
-            <span>Next.js</span>
+            <span>Diving</span>
           </div>
           <div className="flex items-center gap-1 text-sm text-white">
             <div className="w-3 h-3 bg-white"></div>
-            <span>Node.js</span>
+            <span>Video Editing</span>
           </div>
           <div className="flex items-center gap-1 text-sm text-white">
             <div className="w-3 h-3 bg-white"></div>
-            <span>UI/UX Design</span>
+            <span>Business</span>
+          </div>
+          <div className="flex items-center gap-1 text-sm text-white">
+            <div className="w-3 h-3 bg-white"></div>
+            <span>Python</span>
+          </div>
+          <div className="flex items-center gap-1 text-sm text-white">
+            <div className="w-3 h-3 bg-white"></div>
+            <span>Leadership</span>
+          </div>
+          <div className="flex items-center gap-1 text-sm text-white">
+            <div className="w-3 h-3 bg-white"></div>
+            <span>Making Friends!</span>
           </div>
         </div>
       </div>
@@ -52,10 +61,13 @@ export default function AboutApp() {
       <div className="bg-gray-800 border border-white p-2">
         <h2 className="font-bold underline text-white">Interests:</h2>
         <ul className="list-disc pl-5 text-sm mt-1 space-y-1 text-white">
-          <li>Retro computing & design</li>
-          <li>Open source development</li>
-          <li>Digital art & pixel art</li>
+          <li>Business</li>
+          <li>Aviation</li>
+          <li>Web Development</li>
           <li>Game development</li>
+          <li>Yoga</li>
+          <li>Volunteering</li>
+          <li>Robotics</li>
         </ul>
       </div>
 
