@@ -382,7 +382,7 @@ function Frame({ children, live, signOut }: { children: ReactNode; live?: ReactN
               <span aria-hidden="true">←</span>
             </Link>
             <h1 className="truncate font-display text-[1.1875rem] font-black tracking-[-0.015em] [font-variation-settings:'wdth'_125] sm:text-[1.375rem]">
-              Labs stats
+              Stats
             </h1>
           </div>
           <div className="flex shrink-0 items-center gap-2">
