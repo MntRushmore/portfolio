@@ -91,6 +91,20 @@ export const labs: Lab[] = [
     cover: "/lab-files/sand-world/cover.jpg",
   },
   {
+    slug: "say-the-room",
+    title: "Say the Room",
+    date: "2026-11-11",
+    summary:
+      "Describe a 1970s living room out loud and it furnishes itself while you’re still mid-sentence. Change your mind (“actually, no plant”) and things vanish just as fast.",
+    about: [
+      "Press Talk and say what you want: teal walls, a big rainbow, a mustard sofa, a cat, make it night, put a lamp on. Every word goes to Jev, TypeSafe AI’s decision model, which answers 23 small questions about the room in around 150 milliseconds. The room redraws from those answers, so the sofa lands before you finish saying where it goes. A readout in the corner shows the real time from word to screen.",
+      "Jev never writes a word. It only decides: which wall colour, is there a dog, how wild is the party, and how sure it is of each. Corrections work because every question asks about your latest intent, so “no wait, lose the disco ball” simply flips an answer. When you like what you’ve said, save the room as a poster or copy a link that rebuilds it.",
+    ],
+    tags: ["voice", "ai", "illustration"],
+    kind: "html",
+    cover: "/lab-files/say-the-room/cover.jpg",
+  },
+  {
     slug: "lights-out-no-script",
     title: "Lights Out, Script Off",
     date: "2026-11-10",

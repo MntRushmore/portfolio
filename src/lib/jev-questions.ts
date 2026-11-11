@@ -54,18 +54,18 @@ export const JEV_QUESTIONS = {
   },
   floor: {
     type: "choice",
-    instructions: "What is the FLOOR made of, going by the latest thing said about the floor itself (not a rug)?",
+    instructions: "What covers the FLOOR, going by the latest thing said about the floor or flooring? A rug lying on the floor does not change it.",
     criteria: {
       unsaid: "Nothing said about the floor itself",
       wood: "Wood, parquet, floorboards",
-      shag: "Wall-to-wall carpet, shag carpet",
+      shag: "Carpet of any kind: shag carpet, carpeted, wall-to-wall carpet. Carpet counts as the floor",
       checker: "Tiles, checkerboard, lino, chequered",
       cork: "Cork, concrete, stone or plain",
     },
   },
   time: {
     type: "choice",
-    instructions: "What time of day is it outside the window, going by the latest thing said about it?",
+    instructions: "What time of day is it outside the window, going by the latest thing said about it? A sun or sunburst painted on the wall says nothing about the time.",
     criteria: {
       unsaid: "No time of day has been mentioned",
       morning: "Morning, dawn, sunrise, early",
@@ -86,9 +86,9 @@ export const JEV_QUESTIONS = {
   lights: {
     type: "score",
     instructions:
-      "How brightly lit is the room itself, going by the latest thing said about the lighting or lights? If lighting was never mentioned, choose normal.",
+      "How brightly lit is the room, going by the latest thing said about the lights or lighting? Only words about the lights themselves count (lights off, dim, bright). Night-time, weather, a painted sun, or adding and removing a lamp leave it at normal. If the lighting was never mentioned, choose normal.",
     criteria: [
-      "Lights off, pitch dark",
+      "Lights off, lights out, pitch dark",
       "Dim, low, moody, cosy lighting",
       "Normal lighting, or lighting not mentioned",
       "Bright",
@@ -98,7 +98,7 @@ export const JEV_QUESTIONS = {
   mood: {
     type: "score",
     instructions:
-      "What is the mood or energy of the room right now, going by the latest thing said about the mood, vibe, party or music? If nothing was said about it, choose easygoing.",
+      "What is the mood or energy of the room right now, going by the latest thing said about the mood, vibe, party or music? Night-time, weather and furniture say nothing about the mood. If nothing was said about it, choose easygoing.",
     criteria: [
       "Silent, sleepy, completely still",
       "Calm, mellow, chilled, relaxed",
@@ -107,14 +107,14 @@ export const JEV_QUESTIONS = {
       "Full party, disco, wild, turned all the way up",
     ],
   },
-  music: has("music playing", "Music counts if they asked for music, a song, a record playing, a tune or a groove. It stops if they said to stop, mute or turn the music off."),
+  music: has("music playing", "Music counts if they asked for music, a song, a record playing, a tune or a groove. It stops if they said to stop, mute or turn the music off. A record player or stereo merely being in the room is not music."),
   sofa: has("a sofa or couch"),
   sofaColor: {
     type: "choice",
     instructions: "What colour is the sofa or couch, going by the latest thing said about it? Ignore wall colours.",
     criteria: { unsaid: "No sofa colour has been asked for, or there is no sofa", ...PAINTS },
   },
-  chair: has("an armchair, egg chair, beanbag or other chair"),
+  chair: has("an armchair, egg chair, beanbag or other chair", "A sofa or couch is not a chair."),
   lamp: has("a lamp or floor lamp", "A lava lamp does not count as a lamp."),
   plant: has("a plant, fern, palm, cactus or other houseplant"),
   records: has("a record player, turntable, hi-fi or stereo"),
@@ -122,8 +122,8 @@ export const JEV_QUESTIONS = {
   disco: has("a disco ball or mirror ball"),
   cat: has("a cat or kitten"),
   dog: has("a dog or puppy"),
-  rug: has("a rug"),
-  art: has("a painting, poster, picture or other art on the wall"),
+  rug: has("a rug", "Wall-to-wall or shag carpet is flooring, not a rug."),
+  art: has("a framed picture hung on the wall: a painting, poster, photo or print", "A rainbow, stripes, sun, waves, circles or any mural painted straight onto the wall is NOT a picture, and neither is the wall colour."),
   tv: has("a television"),
   fire: has("a fireplace or a fire burning"),
 } satisfies Record<string, Experimental_DecisionQuestion>;

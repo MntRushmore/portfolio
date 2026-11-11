@@ -25,15 +25,15 @@ of that render (frame count, render time, loudness, ffprobe).
 
 | flag | meaning | default |
 | --- | --- | --- |
-| `--tune <name or index>` | Ode to Joy, Twinkle, Frère Jacques, Für Elise, Mountain King, Canon in D, The Entertainer | `canon` |
+| `--tune <name>` | The Entertainer (the pipeline's own 16-bar version), or any tune the lab ships: Ode to Joy, Twinkle, Frère Jacques, Für Elise, Mountain King, Canon in D, Happy Birthday, Greensleeves, Jingle Bells, ... | `canon` |
 | `--aspect 9:16` or `16:9` | 1080x1920 or 1920x1080 | `9:16` |
 | `--fps <n>` | frame rate | `60` |
 | `--title` | the lab's section titles at the top ("1. Vibraphone", ...), tune name over the first, end credit at the close | off |
 | `--credit <text>` | end credit text | `labs.rushilchopra.com` |
 | `--preview` | half resolution, half frame rate, 6 samples | off |
 | `--speed <0.5..1.6>` | tempo multiplier (the lab re-solves the layout) | `1` |
-| `--samples <n>` | EEVEE samples per frame | `20` (preview `6`) |
-| `--jobs <n>` | Blender processes rendering chunks side by side | `2` |
+| `--samples <n>` | EEVEE samples per frame | `16` (preview `6`) |
+| `--jobs <n>` | Blender processes rendering chunks side by side | `1` (preview `2`) |
 | `--engine cycles` | path-traced "hero" mode: far slower, real refraction and caustics in the glass | `eevee` |
 | `--score <file>` | use a saved lab score instead of asking the lab | |
 | `--lab <url>` | where the lab page is served | the dev server |
@@ -81,6 +81,15 @@ of a tune; the pipeline gives each one a look and a voice.
 
 There is no percussion-tube instrument. If a score still carries tubes, `lib/adapter.mjs` turns them
 into brass bells (both are round in the plane of the run, so every bounce stays exact).
+
+## Render time
+
+Measured on an M4 MacBook Air, 1080x1920, 16 samples: about 2.2 s a frame with two jobs (a 25 s
+video at 60 fps, 1525 frames, took 56 minutes), about 2.9 s with one. The preview (540x960, 30 fps,
+6 samples, two jobs) is about 0.55 s a frame, 5 minutes for a 20 s tune. Samples barely matter; the
+time went to full-size shadow maps, full-resolution ray tracing, jittered bokeh, fast GI and
+overscan, which together cost about 2 s a frame and changed nothing visible, so `blender/scene.py`
+turns them off or halves them. Anything else using the GPU or CPU at the same time slows it a lot.
 
 ## Checking a render
 
