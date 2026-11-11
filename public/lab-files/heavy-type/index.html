@@ -1,0 +1,414 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Heavy Type</title>
+<link rel="stylesheet" href="../kit.css">
+<style>
+  html, body { overflow: hidden; overscroll-behavior: none; }
+  body { display: flex; flex-direction: column; background: var(--umber); }
+
+  /* The poster: rows of letters, each row a painted band. */
+  #poster {
+    position: relative; flex: 1 1 auto; min-height: 0; overflow: hidden;
+    touch-action: none; cursor: crosshair; user-select: none; -webkit-user-select: none;
+    background: var(--plaster);
+  }
+  .band {
+    position: absolute; left: 0; right: 0; top: 0; overflow: hidden;
+    border-bottom: 2px solid var(--umber);
+    font-family: var(--display); font-weight: 900; line-height: 1; white-space: pre;
+  }
+  .band span { position: absolute; left: 0; top: 0; display: block; }
+  #poster .wait[hidden] { display: none; }
+  #poster .wait {
+    position: absolute; inset: 0; display: grid; place-items: center; margin: 0;
+    font-family: var(--display); font-weight: 800; font-size: 18px; color: var(--ink-2);
+  }
+
+  /* The strip underneath: title, hook, three buttons. */
+  .strip {
+    flex: 0 0 auto; display: flex; align-items: center; gap: 8px 18px; flex-wrap: wrap;
+    padding: 10px 16px; background: var(--plaster); border-top: 2px solid var(--umber);
+  }
+  .strip h1 {
+    margin: 0; font-family: var(--display); font-weight: 900; font-variation-settings: "wdth" 135;
+    font-size: 22px; line-height: 1; letter-spacing: -0.01em; text-transform: uppercase; white-space: nowrap;
+  }
+  .strip .hook { margin: 0; flex: 1 1 260px; font-size: 14.5px; line-height: 1.3; color: var(--ink-2); font-weight: 600; }
+  .strip .row { flex-wrap: nowrap; }
+  .btn.go { background: var(--persimmon); }
+  .btn.go:hover { background: #ff7a42; }
+  .btn.go[aria-pressed="true"] { background: var(--umber); color: var(--plaster); }
+
+  .pop {
+    position: fixed; right: 16px; bottom: 76px; width: min(400px, calc(100% - 32px)); z-index: 5;
+    max-height: calc(100% - 100px); overflow: auto;
+  }
+  .pop[hidden] { display: none; }
+  .pop h2 { margin: 0 0 6px; font-family: var(--display); font-weight: 900; font-variation-settings: "wdth" 125; font-size: 16px; text-transform: uppercase; }
+  .pop p { margin: 0 0 8px; font-size: 14px; }
+  .pop pre {
+    margin: 0 0 8px; padding: 10px; background: var(--umber); color: var(--plaster); border-radius: 4px;
+    font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; overflow: auto;
+  }
+  .pop .note { color: var(--ink-2); font-size: 13px; margin: 0; }
+  .pop input[type="text"] {
+    width: 100%; min-height: 42px; padding: 0 12px; border: 2px solid var(--umber); border-radius: 999px;
+    background: #fff7ea; font-weight: 700; font-size: 16px; text-transform: uppercase;
+  }
+  .toast {
+    position: fixed; left: 50%; top: 14px; transform: translateX(-50%); z-index: 6; margin: 0;
+    padding: 8px 14px; background: var(--umber); color: var(--plaster); border-radius: 999px;
+    font-weight: 700; font-size: 13.5px; max-width: calc(100% - 24px); text-align: center;
+    transition: opacity 400ms var(--ease);
+  }
+  .toast[hidden] { display: none; }
+
+  @media (max-width: 640px) {
+    .strip { padding: 8px 12px 10px; gap: 6px 12px; }
+    .strip h1 { font-size: 19px; }
+    .strip .hook { flex-basis: 100%; order: 3; font-size: 13.5px; }
+    .strip .row { margin-left: auto; gap: 6px; }
+    .strip .btn { min-height: 36px; padding: 0 11px; font-size: 13px; }
+    .pop { right: 8px; left: 8px; width: auto; bottom: 118px; max-height: calc(100% - 130px); }
+  }
+</style>
+</head>
+<body>
+<div id="poster" aria-label="A poster of big letters. They grow wide and heavy near your pointer and squeeze thin everywhere else.">
+  <p class="wait" id="wait">Loading the letters…</p>
+</div>
+
+<footer class="strip">
+  <h1>Heavy Type</h1>
+  <p class="hook" id="hook">Point at a letter and it puts on weight. The rest of the line has to squeeze.</p>
+  <div class="row">
+    <button class="btn go" id="tilt" aria-pressed="false" hidden>Steer by tilting</button>
+    <button class="btn" id="wordsBtn" aria-expanded="false" aria-controls="wordsPop">Your words</button>
+    <button class="btn" id="howBtn" aria-expanded="false" aria-controls="howPop">How it works</button>
+  </div>
+</footer>
+
+<section class="pop panel" id="wordsPop" hidden aria-label="Change the words">
+  <h2>Say something else</h2>
+  <p><label for="words" class="visually-hidden">Words for the poster</label>
+    <input type="text" id="words" maxlength="90" autocomplete="off" autocapitalize="characters" spellcheck="false"></p>
+  <p class="note">The lines re-break to fill the screen, however long or short the sentence is.</p>
+</section>
+
+<section class="pop panel" id="howPop" hidden aria-label="How it works">
+  <h2>How it works</h2>
+  <p>The typeface, Anybody, is a variable font: one file that can be any width from squashed to stretched, and any weight from hairline to black. Every letter here is its own element with its own width setting.</p>
+  <p>Each letter asks for a width based on how close it is to your pointer. Then every line is balanced so the letters add up to exactly the screen width, so when one letter swells, its neighbours must thin out.</p>
+<pre>// near the pointer = 1, far away = 0
+u = clamp(shift + bump(distance))
+letter.style.fontVariationSettings =
+  `"wdth" ${50 + 100*u}, "wght" ${380 + 520*u}`
+// "shift" is found by bisection, per line,
+// until the widths sum to the screen width</pre>
+  <p>The pointer drags the heavy spot on a spring, which is why it wobbles when you stop. On a phone, the tilt button reads the device orientation sensor instead, so the weight rolls to whichever side is lower.</p>
+  <p class="note" id="tiltNote"></p>
+</section>
+
+<p class="toast" id="toast" hidden role="status"></p>
+
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const poster = $("poster");
+  const qs = new URLSearchParams(location.search);
+  const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  const DEFAULT_TEXT = "Push the type around and it pushes back";
+  const SCHEMES = [
+    ["#f2662a", "#241006"], ["#241006", "#fbe6cc"], ["#f4c04e", "#241006"],
+    ["#b32317", "#fbe6cc"], ["#fbe6cc", "#241006"], ["#1f6b70", "#fbe6cc"],
+  ];
+  const WDTH = [50, 150], WGHT = [380, 900];
+  const SAMPLES = 9;            // widths are measured at 9 points along the thin-to-fat axis
+  const FILL = 0.76;            // capital letters fill this much of a band's height
+  const U_REST = 0.42;          // how fat letters are when nobody is pointing
+  const variation = (u) => `"wdth" ${(WDTH[0] + (WDTH[1] - WDTH[0]) * u).toFixed(1)}, "wght" ${(WGHT[0] + (WGHT[1] - WGHT[0]) * u).toFixed(0)}`;
+
+  // ── Font metrics ───────────────────────────────────────────────────────────
+  const adv = new Map();        // char -> Float32Array(SAMPLES) of advance widths in em
+  let capH = 0.7, baseline = 0.86;
+
+  function measure(chars) {
+    const need = [...new Set(chars)].filter((c) => !adv.has(c));
+    if (!need.length) return;
+    const box = document.createElement("div");
+    box.style.cssText = "position:absolute;left:-9999px;top:0;visibility:hidden;white-space:pre;font:900 200px/1 Anybody,'Arial Black',sans-serif";
+    const spans = [];
+    for (const c of need) for (let k = 0; k < SAMPLES; k++) {
+      const s = document.createElement("span");
+      s.style.cssText = "display:inline-block";
+      s.style.fontVariationSettings = variation(k / (SAMPLES - 1));
+      s.textContent = c;
+      box.appendChild(s); spans.push(s);
+    }
+    document.body.appendChild(box);
+    need.forEach((c, i) => {
+      const a = new Float32Array(SAMPLES);
+      for (let k = 0; k < SAMPLES; k++) a[k] = spans[i * SAMPLES + k].getBoundingClientRect().width / 200;
+      adv.set(c, a);
+    });
+    box.remove();
+  }
+  function widthAt(a, u) {
+    const f = u * (SAMPLES - 1), i = Math.min(SAMPLES - 2, f | 0), t = f - i;
+    return a[i] + (a[i + 1] - a[i]) * t;
+  }
+  function measureVertical() {
+    try {
+      const m = document.createElement("canvas").getContext("2d");
+      m.font = "900 200px Anybody, 'Arial Black', sans-serif";
+      const t = m.measureText("H");
+      if (t.actualBoundingBoxAscent > 0) capH = t.actualBoundingBoxAscent / 200;
+      if (t.fontBoundingBoxAscent > 0) {
+        const A = t.fontBoundingBoxAscent / 200, D = t.fontBoundingBoxDescent / 200;
+        baseline = 0.5 + (A - D) / 2;          // baseline's distance below the top of a line-height:1 box
+      }
+    } catch (e) {}
+  }
+
+  // ── Layout: break the sentence into lines that fill the poster ─────────────
+  let W = 0, H = 0, PAD = 0, rows = [];
+  let text = (qs.get("text") || DEFAULT_TEXT);
+
+  function wrap(words, maxChars) {
+    const out = []; let cur = "";
+    for (const w of words) {
+      if (cur && (cur + " " + w).length > maxChars) { out.push(cur); cur = w; }
+      else cur = cur ? cur + " " + w : w;
+    }
+    if (cur) out.push(cur);
+    return out;
+  }
+  const emWidth = (line, u) => { let s = 0; for (const c of line) s += widthAt(adv.get(c), u); return s; };
+
+  function build() {
+    W = poster.clientWidth; H = poster.clientHeight;
+    if (!W || !H) return;
+    PAD = Math.round(Math.max(10, W * 0.022));
+    const clean = text.toUpperCase().replace(/\s+/g, " ").trim() || DEFAULT_TEXT.toUpperCase();
+    const words = clean.split(" ");
+    measure(clean);
+    const inner = W - PAD * 2;
+
+    // Try every line length (and repeating the sentence) and keep the break
+    // whose natural height is closest to the height we have.
+    let best = null;
+    for (let rep = 1; rep <= 4; rep++) {
+      const all = []; for (let r = 0; r < rep; r++) all.push(...words);
+      for (let mc = 2; mc <= 28; mc++) {
+        const lines = wrap(all, mc);
+        if (lines.length > 14) continue;
+        let h = 0;
+        const nat = lines.map((l) => { const n = (inner / emWidth(l, U_REST)) * capH / FILL; h += n; return n; });
+        const spread = Math.log(Math.max(...nat) / Math.min(...nat));      // very uneven lines look lopsided
+        const score = Math.abs(Math.log(H / h)) + 0.3 * spread + (lines.length < 3 ? 0.5 : 0) + (rep - 1) * 0.12;
+        if (!best || score < best.score) best = { score, lines, nat, h };
+      }
+    }
+    poster.querySelectorAll(".band").forEach((b) => b.remove());
+    rows = best.lines.map((line, i) => {
+      const el = document.createElement("div");
+      el.className = "band";
+      const [bg, fg] = SCHEMES[i % SCHEMES.length];
+      el.style.background = bg; el.style.color = fg;
+      const letters = [...line].map((c) => {
+        const s = document.createElement("span");
+        s.textContent = c; el.appendChild(s);
+        return { el: s, a: adv.get(c), space: c === " ", d: 0, u: -1, x: -1 };
+      });
+      poster.appendChild(el);
+      return { el, letters, base: best.nat[i] * (H / best.h), h: 0, y: 0, mid: 0 };
+    });
+    let acc = 0;
+    for (const r of rows) { r.mid = acc + r.base / 2; acc += r.base; }
+    $("wait").hidden = true;
+    render();
+  }
+
+  // ── The heavy spot ─────────────────────────────────────────────────────────
+  // (lx, ly) chases (tx, ty) on a spring. amp is how strong the bulge is.
+  let tx = 0.5, ty = 0.4, lx = 0.5, ly = 0.4, vx = 0, vy = 0;
+  let amp = 1, ampT = 1, dirty = true, lastInput = -1e9, frozen = false;
+  if (qs.has("x") || qs.has("y")) {
+    frozen = true;
+    tx = lx = parseFloat(qs.get("x") || "0.5"); ty = ly = parseFloat(qs.get("y") || "0.5");
+  }
+  if (qs.has("amp")) amp = ampT = parseFloat(qs.get("amp"));
+
+  function render() {
+    const px = lx * W, py = ly * H;
+    const sig = Math.max(125, Math.min(W, H) * 0.26);
+    // Bands near the spot grow taller, the others give up the room.
+    let sum = 0, y = 0;
+    for (const r of rows) {
+      const g = Math.exp(-((r.mid - py) ** 2) / (2 * (sig * 0.9) ** 2));
+      r.want = r.base * (1 + 0.55 * amp * g); sum += r.want;
+    }
+    const inner = W - PAD * 2;
+    for (const r of rows) {
+      r.h = r.want * H / sum; r.y = y; y += r.h;
+      const fs = r.h * FILL / capH;
+      const cy = r.y + r.h / 2;
+      // How much each letter wants to swell, from its resting position.
+      let x0 = 0; const rest = inner / r.letters.reduce((s, L) => s + widthAt(L.a, U_REST), 0);
+      for (const L of r.letters) {
+        const w = widthAt(L.a, U_REST) * rest, cx = PAD + x0 + w / 2; x0 += w;
+        L.d = L.space ? 0 : amp * 0.95 * Math.exp(-(((cx - px) ** 2) + ((cy - py) ** 2)) / (2 * sig * sig));
+      }
+      // Find the shift that makes the line exactly as wide as the poster.
+      let lo = -1.2, hi = 1.2;
+      const total = (c) => { let s = 0; for (const L of r.letters) s += widthAt(L.a, L.space ? U_REST : Math.max(0, Math.min(1, c + L.d))); return s * fs; };
+      for (let i = 0; i < 22; i++) { const mid = (lo + hi) / 2; if (total(mid) > inner) hi = mid; else lo = mid; }
+      const c = (lo + hi) / 2, fit = inner / total(c);   // fit is 1 unless the line cannot stretch or squeeze enough
+      r.el.style.height = (r.h + 0.5).toFixed(2) + "px";
+      r.el.style.transform = `translateY(${r.y.toFixed(2)}px)`;
+      r.el.style.fontSize = fs.toFixed(2) + "px";
+      const top = r.h / 2 - (baseline - capH / 2) * fs;
+      let x = PAD;
+      for (const L of r.letters) {
+        const u = L.space ? U_REST : Math.max(0, Math.min(1, c + L.d));
+        const w = widthAt(L.a, u) * fs * fit;
+        if (Math.abs(u - L.u) > 0.002) { L.el.style.fontVariationSettings = variation(u); L.u = u; }
+        const squash = Math.abs(fit - 1) > 0.01 ? ` scaleX(${fit.toFixed(3)})` : "";
+        L.el.style.transform = `translate(${x.toFixed(2)}px, ${top.toFixed(2)}px)${squash}`;
+        L.el.style.transformOrigin = "0 0";
+        x += w;
+      }
+    }
+  }
+
+  let last = performance.now(), wanderT = Math.random() * 100;
+  function frame(now) {
+    const dt = Math.min(0.033, (now - last) / 1000); last = now;
+    if (rows.length) {
+      const idle = now - lastInput > 3500 && !tiltOn && !frozen;
+      if (idle && !reduced) {
+        // Nobody is steering: wander in a slow figure of eight so the poster is never still.
+        wanderT += dt;
+        tx = 0.5 + 0.4 * Math.sin(wanderT * 0.55);
+        ty = 0.5 + 0.36 * Math.sin(wanderT * 0.83 + 1);
+        ampT = 1;
+      }
+      if (reduced || frozen) {
+        if (lx !== tx || ly !== ty || amp !== ampT) { lx = tx; ly = ty; amp = ampT; dirty = true; }
+      } else {
+        const k = idle ? 14 : 150, c = idle ? 7.5 : 13;      // spring stiffness and damping
+        vx += (k * (tx - lx) - c * vx) * dt; vy += (k * (ty - ly) - c * vy) * dt;
+        lx += vx * dt; ly += vy * dt;
+        amp += (ampT - amp) * Math.min(1, dt * 9);
+        if (Math.abs(vx) + Math.abs(vy) > 0.0004 || Math.abs(tx - lx) + Math.abs(ty - ly) > 0.0004 || Math.abs(ampT - amp) > 0.002) dirty = true;
+      }
+      if (dirty) { render(); dirty = false; }
+    }
+    requestAnimationFrame(frame);
+  }
+
+  // ── Input: pointer ─────────────────────────────────────────────────────────
+  function aim(e) {
+    const r = poster.getBoundingClientRect();
+    tx = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width));
+    ty = Math.max(0, Math.min(1, (e.clientY - r.top) / r.height));
+    lastInput = performance.now();
+  }
+  poster.addEventListener("pointermove", (e) => { if (!frozen && !(tiltOn && e.pointerType !== "mouse" && !e.buttons)) aim(e); });
+  poster.addEventListener("pointerdown", (e) => { if (frozen) return; aim(e); ampT = 1.45; closePops(); });
+  window.addEventListener("pointerup", () => { ampT = 1; });
+  window.addEventListener("pointercancel", () => { ampT = 1; });
+  // Arrow keys steer too.
+  window.addEventListener("keydown", (e) => {
+    if (e.target.tagName === "INPUT") return;
+    const step = { ArrowLeft: [-0.06, 0], ArrowRight: [0.06, 0], ArrowUp: [0, -0.08], ArrowDown: [0, 0.08] }[e.key];
+    if (!step || frozen) return;
+    tx = Math.max(0, Math.min(1, tx + step[0])); ty = Math.max(0, Math.min(1, ty + step[1]));
+    lastInput = performance.now(); e.preventDefault();
+  });
+
+  // ── Input: tilt (asked for only after the button is pressed) ───────────────
+  let tiltOn = false, gotTilt = false, beta0 = null;
+  const tiltBtn = $("tilt"), tiltNote = $("tiltNote");
+  const hasTiltApi = "DeviceOrientationEvent" in window;
+  const touchy = matchMedia("(hover: none) and (pointer: coarse)").matches;
+  function toast(msg) {
+    const t = $("toast"); t.textContent = msg; t.hidden = false; t.style.opacity = 1;
+    clearTimeout(toast.t); toast.t = setTimeout(() => { t.style.opacity = 0; setTimeout(() => (t.hidden = true), 450); }, 4200);
+  }
+  function onTilt(e) {
+    if (e.gamma == null || e.beta == null) return;
+    if (!gotTilt) { gotTilt = true; beta0 = e.beta; }
+    if (!tiltOn) return;
+    // Sideways tilt moves the spot across; tipping away or towards you moves it up or down.
+    let g = e.gamma, b = e.beta - beta0;
+    const o = (screen.orientation && screen.orientation.angle) || 0;
+    if (o === 90) [g, b] = [e.beta, -e.gamma]; else if (o === 270 || o === -90) [g, b] = [-e.beta, e.gamma];
+    tx = Math.max(0, Math.min(1, 0.5 + g / 50));
+    ty = Math.max(0, Math.min(1, 0.5 + b / 44));
+    lastInput = performance.now();
+  }
+  function tiltOff(msg) {
+    tiltOn = false; tiltBtn.setAttribute("aria-pressed", "false"); tiltBtn.textContent = "Steer by tilting";
+    window.removeEventListener("deviceorientation", onTilt);
+    if (msg) toast(msg);
+  }
+  async function tiltStart() {
+    try {
+      if (typeof DeviceOrientationEvent.requestPermission === "function") {
+        const res = await DeviceOrientationEvent.requestPermission();
+        if (res !== "granted") return tiltOff("Motion access was turned down, so your finger steers instead.");
+      }
+    } catch (err) { return tiltOff("This browser would not share its motion sensor. Your finger steers instead."); }
+    gotTilt = false; beta0 = null; tiltOn = true;
+    tiltBtn.setAttribute("aria-pressed", "true"); tiltBtn.textContent = "Tilting: on";
+    window.addEventListener("deviceorientation", onTilt);
+    toast("Tilt the phone. The weight rolls to the low side.");
+    setTimeout(() => { if (tiltOn && !gotTilt) tiltOff("No tilt sensor answered on this device, so your finger steers instead."); }, 1800);
+  }
+  if (hasTiltApi && touchy) {
+    tiltBtn.hidden = false;
+    tiltBtn.addEventListener("click", () => (tiltOn ? tiltOff() : tiltStart()));
+    $("hook").textContent = "Touch a letter and it puts on weight; the rest of the line has to squeeze. Or steer by tilting your phone.";
+    tiltNote.textContent = "Tilt needs a phone or tablet with a motion sensor, and on iPhone it asks permission first. If either is missing, touch works the same way.";
+  } else {
+    tiltNote.textContent = hasTiltApi
+      ? "This looks like a computer without a tilt sensor, so the pointer steers. Open it on a phone to steer by tilting."
+      : "This browser has no device orientation sensor support, so the pointer steers.";
+  }
+
+  // ── Panels ─────────────────────────────────────────────────────────────────
+  const pops = [["wordsBtn", "wordsPop"], ["howBtn", "howPop"]];
+  function closePops() { pops.forEach(([b, p]) => { $(p).hidden = true; $(b).setAttribute("aria-expanded", "false"); }); }
+  pops.forEach(([b, p]) => $(b).addEventListener("click", () => {
+    const open = $(p).hidden; closePops();
+    if (open) { $(p).hidden = false; $(b).setAttribute("aria-expanded", "true"); if (p === "wordsPop") $("words").focus(); }
+  }));
+  window.addEventListener("keydown", (e) => { if (e.key === "Escape") closePops(); });
+  const words = $("words");
+  words.value = text.toUpperCase();
+  words.addEventListener("input", () => { text = words.value; build(); });
+  if (qs.get("how")) $("howBtn").click();
+
+  // ── Start ──────────────────────────────────────────────────────────────────
+  new ResizeObserver(() => { if (poster.clientWidth !== W || poster.clientHeight !== H) build(); }).observe(poster);
+  const ready = document.fonts && document.fonts.load
+    ? Promise.race([
+        Promise.all([document.fonts.load("900 100px Anybody", "HEAVY"), document.fonts.ready]),
+        new Promise((r) => setTimeout(r, 3500)),
+      ])
+    : Promise.resolve();
+  ready.catch(() => {}).then(() => {
+    measureVertical(); adv.clear(); build();
+    requestAnimationFrame(frame);
+    // If the font arrives late, measure again.
+    if (document.fonts) document.fonts.addEventListener && document.fonts.addEventListener("loadingdone", () => { measureVertical(); adv.clear(); build(); });
+  });
+})();
+</script>
+</body>
+</html>

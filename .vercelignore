@@ -1,0 +1,16 @@
+# Design process artefacts (renders, screenshots, source photos): not needed
+# to build the site, and ~270 MB of upload.
+/.design
+
+# Agent tooling
+/.agents
+/.claude
+
+# Local build output, env and caches
+/.next
+/node_modules
+.env*
+*.tsbuildinfo
+
+# Local video tool (large SoundFont, renders): not part of the site
+/tools

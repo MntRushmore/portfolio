@@ -1,0 +1,1554 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Corduroy</title>
+<link rel="stylesheet" href="../kit.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,600;1,400&display=swap">
+<style>
+  :root {
+    --mustard: #f4c04e; --teal: #1f6b70; --avocado: #66733a; --cream: #fff6e6;
+    --mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    --fs: 14px; --lh: 22px; --pad: 12px;
+  }
+  body { display: flex; flex-direction: column; height: 100dvh; overflow: hidden; }
+
+  /* ── Header ── */
+  header {
+    flex: none; display: flex; align-items: center; gap: 18px;
+    padding: 10px 16px; background: var(--persimmon); border-bottom: 2px solid var(--umber);
+  }
+  .brand { display: flex; align-items: center; gap: 12px; flex: none; }
+  .wales { display: flex; gap: 3px; height: 38px; transform: skewX(-12deg); }
+  .wales i { width: 7px; border-radius: 4px; background: var(--umber); }
+  .wales i:nth-child(2) { background: var(--brick); }
+  .wales i:nth-child(3) { background: var(--mustard); }
+  .wales i:nth-child(4) { background: var(--plaster); }
+  h1 {
+    margin: 0; font-family: var(--display); font-weight: 900; font-variation-settings: "wdth" 138;
+    font-size: 27px; line-height: 1; letter-spacing: -0.01em; text-transform: uppercase;
+  }
+  .tag { margin: 3px 0 0; font-weight: 600; font-size: 13px; line-height: 1.2; }
+  .examples {
+    display: flex; gap: 6px; align-items: center; margin-left: auto; min-width: 0;
+    overflow-x: auto; scrollbar-width: none; padding: 3px 2px 5px;
+  }
+  .examples::-webkit-scrollbar { display: none; }
+  .examples .label { color: var(--umber); flex: none; margin-right: 4px; }
+  .chip {
+    flex: none; min-height: 34px; padding: 0 13px; border: 2px solid var(--umber); border-radius: 999px;
+    background: var(--plaster); font-weight: 700; font-size: 13.5px; cursor: pointer;
+    transition: transform 140ms var(--ease), background-color 140ms var(--ease);
+  }
+  .chip:hover { background: var(--cream); transform: translateY(-1px); }
+  .chip[aria-pressed="true"] { background: var(--umber); color: var(--plaster); box-shadow: 2px 2px 0 var(--mustard); }
+
+  /* ── Layout ── */
+  main {
+    flex: 1; min-height: 0; display: grid; gap: 16px; padding: 16px 20px 20px 16px;
+    grid-template-columns: clamp(360px, 37vw, 620px) minmax(0, 1fr);
+  }
+  .left { display: flex; flex-direction: column; gap: 14px; min-height: 0; min-width: 0; }
+  .card { background: var(--cream); border: 2px solid var(--umber); border-radius: 6px; box-shadow: 4px 4px 0 var(--umber); }
+
+  /* ── Editor ── */
+  .editor { flex: 1 1 60%; min-height: 150px; display: flex; flex-direction: column; overflow: hidden; }
+  .ed { flex: 1; min-height: 0; display: flex; position: relative; }
+  .gutter {
+    flex: none; width: 40px; overflow: hidden; background: var(--plaster-2); border-right: 2px solid var(--umber);
+    font: 400 12px/var(--lh) var(--mono); color: var(--ink-2); text-align: right; user-select: none;
+  }
+  .gutter div { padding: var(--pad) 8px var(--pad) 0; will-change: transform; }
+  .gutter span { display: block; height: var(--lh); }
+  .gutter span.bad { background: var(--brick); color: var(--plaster); font-weight: 600; margin-right: -8px; padding-right: 8px; }
+  .gutter span.run { background: var(--mustard); color: var(--umber); font-weight: 600; margin-right: -8px; padding-right: 8px; }
+  .edwrap { position: relative; flex: 1; min-width: 0; }
+  .layer, #code {
+    position: absolute; inset: 0; margin: 0; border: 0; padding: var(--pad) var(--pad) var(--pad) 12px;
+    font: 400 var(--fs)/var(--lh) var(--mono); letter-spacing: 0; tab-size: 2;
+    white-space: pre; font-variant-ligatures: none;
+  }
+  .layer { overflow: hidden; pointer-events: none; color: var(--umber); }
+  .layer > div { will-change: transform; }
+  #code {
+    width: 100%; height: 100%; resize: none; outline: none; background: transparent; overflow: auto;
+    color: transparent; caret-color: var(--brick); -webkit-text-fill-color: transparent;
+  }
+  #code::selection { background: rgba(242, 102, 42, 0.32); color: transparent; }
+  #code:focus-visible { outline: none; box-shadow: none; }
+  .editor:focus-within { box-shadow: 4px 4px 0 var(--persimmon); }
+  .runband { position: absolute; left: 0; right: 0; height: var(--lh); background: rgba(244, 192, 78, 0.42); pointer-events: none; display: none; }
+
+  .t-cmd { color: var(--brick); font-weight: 600; }
+  .t-kw { color: var(--teal); font-weight: 600; }
+  .t-num { color: #b8530a; }
+  .t-com { color: #a3866a; font-style: italic; }
+  .t-user { color: #515e24; font-weight: 600; }
+  .t-fn { color: var(--ink-2); }
+  .t-op { color: var(--ink-2); }
+  .t-bad { color: var(--brick); }
+  .t-col { border-radius: 3px; box-shadow: 0 0 0 1px rgba(36, 16, 6, 0.28); }
+  #errl { color: transparent; }
+  #errl u {
+    text-decoration: underline wavy var(--brick) 1.6px; text-underline-offset: 4px;
+    background: rgba(179, 35, 23, 0.14); border-radius: 2px;
+  }
+
+  .status {
+    flex: none; display: flex; align-items: flex-start; gap: 10px; padding: 8px 12px; min-height: 40px;
+    border-top: 2px solid var(--umber); background: var(--plaster); font-size: 13.5px; line-height: 1.35;
+    text-align: left; width: 100%; border-left: 0; border-right: 0; border-bottom: 0; cursor: default;
+  }
+  .status .pill {
+    flex: none; font-family: var(--display); font-weight: 800; font-variation-settings: "wdth" 115; font-size: 11px;
+    letter-spacing: 0.06em; text-transform: uppercase; padding: 3px 8px; border-radius: 999px;
+    background: var(--avocado); color: var(--cream); margin-top: 1px;
+  }
+  .status.err { background: #fbd9c7; cursor: pointer; }
+  .status.err .pill { background: var(--brick); }
+  .status.warn .pill { background: var(--mustard); color: var(--umber); }
+  .status b { font-weight: 700; }
+  .status code, .ref code { font-family: var(--mono); font-size: 0.92em; }
+  .ref, .status { font-variant-ligatures: none; }
+  .status .hint { color: var(--ink-2); }
+
+  /* ── Reference card ── */
+  .ref { flex: 0 1 auto; min-height: 44px; max-height: 37%; display: flex; flex-direction: column; overflow: hidden; background: var(--plaster); }
+  .ref.closed { flex: none; }
+  .refhead {
+    flex: none; display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%;
+    padding: 9px 12px; border: 0; background: var(--mustard); cursor: pointer; text-align: left;
+    font-family: var(--display); font-weight: 800; font-variation-settings: "wdth" 120; font-size: 13px;
+    letter-spacing: 0.04em; text-transform: uppercase;
+  }
+  .refhead span:last-child { font-family: var(--sans); font-weight: 700; font-size: 12.5px; letter-spacing: 0; text-transform: none; }
+  .refbody { overflow: auto; padding: 12px 14px 14px; border-top: 2px solid var(--umber); }
+  .ref.closed .refbody { display: none; }
+  .refbody p { margin: 0 0 10px; font-size: 13.5px; }
+  .cols { columns: 2 220px; column-gap: 22px; }
+  .grp { break-inside: avoid; margin: 0 0 12px; }
+  .grp h3 { margin: 0 0 4px; }
+  .grp dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; font-size: 12.8px; align-items: baseline; }
+  .grp dt { font-family: var(--mono); font-size: 12px; white-space: nowrap; color: var(--brick); font-weight: 600; }
+  .grp dt.k { color: var(--teal); }
+  .grp dd { margin: 0; color: var(--ink-2); }
+  .swatches { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 4px; }
+  .swatches button {
+    font: 600 11.5px/1 var(--mono); padding: 5px 7px; border: 1.5px solid var(--umber); border-radius: 4px; cursor: pointer;
+  }
+  .swatches button:hover { transform: translateY(-1px); }
+
+  /* ── Stage ── */
+  .stagecard { display: flex; flex-direction: column; min-height: 0; min-width: 0; overflow: hidden; }
+  .stage { position: relative; flex: 1; min-height: 0; background: var(--cream); transition: background-color 200ms; }
+  .stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; transition: opacity 160ms; }
+  .stage.stale #cv { opacity: 0.35; }
+  .empty {
+    position: absolute; inset: 0; display: none; place-items: center; text-align: center; padding: 24px;
+    font-family: var(--display); font-weight: 800; font-variation-settings: "wdth" 120; font-size: 20px; line-height: 1.2; color: var(--ink-2);
+  }
+  .empty code { font-family: var(--mono); font-weight: 600; font-size: 0.85em; color: var(--brick); }
+  .stage.blank .empty { display: grid; }
+  .bar {
+    flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 10px;
+    padding: 10px 12px; border-top: 2px solid var(--umber); background: var(--plaster);
+  }
+  .bar .btn { min-height: 38px; }
+  .bar .play { min-width: 96px; background: var(--persimmon); color: var(--umber); }
+  .bar .play:hover { background: #ff7a42; border-color: var(--umber); }
+  .scrub { flex: 1 1 140px; min-width: 110px; display: flex; align-items: center; gap: 8px; }
+  .scrub .label { flex: none; }
+  .spacer { flex: 0 0 auto; }
+  .toast {
+    position: fixed; left: 50%; bottom: 26px; transform: translate(-50%, 20px); opacity: 0; pointer-events: none;
+    background: var(--umber); color: var(--plaster); font-weight: 700; padding: 10px 16px; border-radius: 999px;
+    box-shadow: 3px 3px 0 var(--mustard); transition: opacity 200ms, transform 200ms var(--ease); z-index: 10;
+  }
+  .toast.on { opacity: 1; transform: translate(-50%, 0); }
+
+  /* ── Small screens: canvas first, then code, then the card ── */
+  @media (max-width: 820px) {
+    :root { --fs: 16px; --lh: 24px; }
+    body { height: auto; min-height: 100dvh; overflow: auto; display: block; }
+    header { flex-wrap: wrap; gap: 8px 12px; padding: 10px 12px 8px; }
+    h1 { font-size: 22px; }
+    .wales { height: 32px; }
+    .tag { font-size: 12.5px; }
+    .examples { margin-left: 0; width: 100%; }
+    .examples .label { display: none; }
+    main { display: flex; flex-direction: column; gap: 14px; padding: 12px 16px 28px 12px; }
+    .left { display: contents; }
+    .stagecard { order: 1; }
+    .stage { flex: none; height: min(46vh, 92vw); min-height: 250px; }
+    .editor { order: 2; flex: none; height: 372px; }
+    .ref { order: 3; max-height: none; flex: none; }
+    .refbody { overflow: visible; }
+    .bar { gap: 8px; padding: 8px 10px; }
+    .scrub { order: 5; flex-basis: 100%; }
+    .gutter { width: 34px; }
+  }
+  @media (min-width: 821px) and (max-height: 640px) { .ref:not(.closed) { max-height: 36%; } }
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">
+    <div class="wales" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+    <div>
+      <h1>Corduroy</h1>
+      <p class="tag">A tiny language for drawing with stripes.</p>
+    </div>
+  </div>
+  <nav class="examples" id="examples" aria-label="Example programs"><span class="label">Try</span></nav>
+</header>
+
+<main>
+  <div class="left">
+    <section class="card editor" aria-label="Code">
+      <div class="ed">
+        <div class="gutter" aria-hidden="true"><div id="gutter"></div></div>
+        <div class="edwrap">
+          <div class="runband" id="runband"></div>
+          <pre class="layer" aria-hidden="true"><div id="hl"></div></pre>
+          <pre class="layer" id="errl" aria-hidden="true"><div id="er"></div></pre>
+          <textarea id="code" spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off" wrap="off" aria-label="Corduroy program" aria-describedby="status"></textarea>
+        </div>
+      </div>
+      <button class="status" id="status" type="button" aria-live="polite"></button>
+    </section>
+
+    <section class="card ref" id="ref" aria-label="Cheat sheet">
+      <button class="refhead" id="refhead" aria-expanded="true" aria-controls="refbody"><span>The whole language</span><span id="reftog">Hide</span></button>
+      <div class="refbody" id="refbody">
+        <p>Your pen is a <b>ribbon of stripes</b>. It starts in the middle of the wall, pointing right. The picture always fits itself to the frame.</p>
+        <div class="cols">
+          <div class="grp">
+            <h3 class="label">Move</h3>
+            <dl>
+              <dt>go 100</dt><dd>roll the ribbon forward</dd>
+              <dt>hop 50</dt><dd>move without drawing</dd>
+              <dt>right 90</dt><dd>sweep a curve (or <code>left</code>)</dd>
+              <dt>spin 45</dt><dd>pivot on the spot</dd>
+              <dt>face -90</dt><dd>point up (0 right, 90 down)</dd>
+              <dt>home</dt><dd>back to the start</dd>
+            </dl>
+          </div>
+          <div class="grp">
+            <h3 class="label">Ribbon</h3>
+            <dl>
+              <dt>stripes a b c</dt><dd>colours, left to right</dd>
+              <dt>wide 12</dt><dd>width of each stripe</dd>
+              <dt>gap 4</dt><dd>wall showing between them</dd>
+              <dt>bend 30</dt><dd>how wide the curves swing</dd>
+              <dt>shift</dt><dd>rotate colours (<code>flip</code> reverses)</dd>
+              <dt>dot 60</dt><dd>a bullseye in your stripes</dd>
+              <dt>wall teal</dt><dd>paint the wall</dd>
+            </dl>
+          </div>
+          <div class="grp">
+            <h3 class="label">Think</h3>
+            <dl>
+              <dt class="k">repeat 6 [ … ]</dt><dd><code>i</code> counts 1, 2, 3…</dd>
+              <dt class="k">let x = 10</dt><dd>remember a number</dd>
+              <dt class="k">if x &gt; 5 [ … ]</dt><dd>and <code>else [ … ]</code></dd>
+              <dt class="k">aside [ … ]</dt><dd>do it, then come back</dd>
+              <dt class="k">to leaf n [ … ]</dt><dd>a new word: <code>leaf 40</code></dd>
+              <dt class="k"># note</dt><dd>ignored by Corduroy</dd>
+            </dl>
+          </div>
+          <div class="grp">
+            <h3 class="label">Sums</h3>
+            <dl>
+              <dt class="k">+ - * / %</dt><dd>and <code>( )</code></dd>
+              <dt class="k">&lt; &gt; == !=</dt><dd>with <code>and</code> <code>or</code> <code>not</code></dd>
+              <dt class="k">random(1, 6)</dt><dd><code>seed 3</code> rerolls</dd>
+              <dt class="k">sin(a) cos(a)</dt><dd>degrees; also <code>min max abs sqrt floor round</code></dd>
+            </dl>
+          </div>
+        </div>
+        <h3 class="label">Colours <span style="text-transform:none;letter-spacing:0;font-family:var(--sans);font-weight:600">(tap to insert)</span></h3>
+        <div class="swatches" id="swatches"></div>
+      </div>
+    </section>
+  </div>
+
+  <section class="card stagecard" aria-label="Drawing">
+    <div class="stage" id="stage">
+      <canvas id="cv" role="img" aria-label="The drawing your program makes"></canvas>
+      <canvas id="ov" aria-hidden="true"></canvas>
+      <div class="empty"><span>A blank wall.<br>Try <code>go 100</code></span></div>
+    </div>
+    <div class="bar">
+      <button class="btn play" id="play">Play</button>
+      <div class="seg" role="group" aria-label="Speed" id="speed">
+        <button data-v="3.2">Slow</button><button data-v="1" aria-pressed="true">Steady</button><button data-v="0.3">Fast</button>
+      </div>
+      <label class="scrub"><span class="label">Scrub</span><input type="range" id="scrub" min="0" max="1000" value="1000" aria-label="Scrub through the drawing"></label>
+      <button class="btn" id="sound" aria-pressed="true">Sound on</button>
+      <button class="btn" id="png">Save PNG</button>
+      <button class="btn" id="share">Copy link</button>
+    </div>
+  </section>
+</main>
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+/*CORE-START*/
+// ═══════════════════════════════════════════════════════════════════════════
+// Corduroy: tokenizer → parser → evaluator. No DOM in here.
+// A program moves a ribbon of parallel stripes; the result is a list of
+// strokes (straight runs, arcs, bullseyes) that the page paints.
+// ═══════════════════════════════════════════════════════════════════════════
+const Corduroy = (() => {
+  const COLORS = {
+    persimmon: "#f2662a", brick: "#b32317", mustard: "#f4c04e", avocado: "#66733a",
+    teal: "#1f6b70", sky: "#8fc4bf", blush: "#f29a7e", umber: "#241006",
+    cocoa: "#5a3a26", sand: "#f3d2ab", plaster: "#fbe6cc", cream: "#fff6e6",
+  };
+  const COMMANDS = { go: 1, hop: 1, left: 1, right: 1, spin: 1, face: 1, bend: 1, wide: 1, gap: 1, dot: 1, seed: 1, shift: 0, flip: 0, home: 0 };
+  const EXAMPLE_ARG = { go: "go 100", hop: "hop 50", left: "left 90", right: "right 90", spin: "spin 45", face: "face -90", bend: "bend 30", wide: "wide 12", gap: "gap 4", dot: "dot 60", seed: "seed 3" };
+  const KEYWORDS = ["stripes", "wall", "repeat", "if", "else", "to", "let", "aside", "and", "or", "not"];
+  const FUNCS = { sin: 1, cos: 1, abs: 1, sqrt: 1, floor: 1, round: 1, min: 2, max: 2, random: 2 };
+  const RESERVED = new Set([...Object.keys(COMMANDS), ...KEYWORDS, ...Object.keys(FUNCS), ...Object.keys(COLORS), "i"]);
+  // Words from other languages, so the error can translate instead of shrug.
+  const SYNONYMS = {
+    forward: "go", fd: "go", move: "go", walk: "go", draw: "go", line: "go", back: "go", jump: "hop", skip: "hop", penup: "hop",
+    turn: "spin", rotate: "spin", rt: "right", lt: "left", color: "stripes", colour: "stripes", colors: "stripes",
+    colours: "stripes", stripe: "stripes", pen: "stripes", background: "wall", bg: "wall", fill: "wall", circle: "dot",
+    loop: "repeat", for: "repeat", while: "repeat", def: "to", function: "to", fn: "to", define: "to", var: "let", set: "let",
+    width: "wide", size: "wide", thick: "wide", curve: "bend", radius: "bend", reverse: "flip", rotatecolors: "shift",
+    push: "aside", save: "aside", then: "[", end: "]", do: "[",
+  };
+  const LIMITS = { steps: 200000, strokes: 12000, depth: 200, nest: 60, stripes: 12 };
+
+  class CordError extends Error {
+    constructor(message, start, end, hint, soft) {
+      super(message); this.start = start; this.end = Math.max(end, start + 1); this.hint = hint || ""; this.soft = !!soft;
+    }
+  }
+  const fail = (msg, tok, hint) => { throw new CordError(msg, tok.start, tok.end, hint); };
+
+  // ── Tokenizer ────────────────────────────────────────────────────────────
+  // Never throws: anything it can't read becomes a "bad" token, so the same
+  // function feeds both the parser and the syntax highlighter.
+  const isDigit = (c) => c >= "0" && c <= "9";
+  const isAlpha = (c) => (c >= "a" && c <= "z") || (c >= "A" && c <= "Z") || c === "_";
+  function tokenize(src) {
+    const toks = [], n = src.length;
+    let i = 0, line = 0;
+    const push = (type, start, end, value) => toks.push({ type, start, end, line, text: src.slice(start, end), value });
+    while (i < n) {
+      const c = src[i];
+      if (c === "\n") { line++; i++; continue; }
+      if (c === " " || c === "\t" || c === "\r" || c === " ") { i++; continue; }
+      if (c === "#") { let j = i; while (j < n && src[j] !== "\n") j++; push("comment", i, j); i = j; continue; }
+      if (isDigit(c) || (c === "." && isDigit(src[i + 1] || ""))) {
+        let j = i;
+        while (j < n && isDigit(src[j])) j++;
+        if (src[j] === "." && isDigit(src[j + 1] || "")) { j++; while (j < n && isDigit(src[j])) j++; }
+        push("num", i, j, parseFloat(src.slice(i, j))); i = j; continue;
+      }
+      if (isAlpha(c)) {
+        let j = i;
+        while (j < n && (isAlpha(src[j]) || isDigit(src[j]))) j++;
+        push("id", i, j, src.slice(i, j).toLowerCase()); i = j; continue;
+      }
+      const two = src.slice(i, i + 2);
+      if (two === "==" || two === "!=" || two === "<=" || two === ">=") { push("op", i, i + 2, two); i += 2; continue; }
+      if ("+-*/%()[],=<>".includes(c)) { push("op", i, i + 1, c); i++; continue; }
+      const cp = src.codePointAt(i), len = cp > 0xffff ? 2 : 1;
+      push("bad", i, i + len); i += len;
+    }
+    return toks;
+  }
+
+  // ── Helpers for kind error messages ──────────────────────────────────────
+  function distance(a, b) {
+    const m = a.length, n = b.length;
+    let prev = Array.from({ length: n + 1 }, (_, j) => j);
+    for (let i = 1; i <= m; i++) {
+      const cur = [i];
+      for (let j = 1; j <= n; j++) {
+        cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+        if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) cur[j] = Math.min(cur[j], prev[j - 1]);
+      }
+      prev = cur;
+    }
+    return prev[n];
+  }
+  function closest(word, candidates) {
+    let best = null, bestD = Infinity;
+    for (const c of candidates) {
+      const d = distance(word, c);
+      if (d < bestD) { bestD = d; best = c; }
+    }
+    return best && bestD <= Math.max(1, Math.floor(word.length / 3)) ? best : null;
+  }
+  const plural = (n, w) => n + " " + w + (n === 1 ? "" : "s");
+
+  // ── Parser ───────────────────────────────────────────────────────────────
+  function parse(src) {
+    const toks = tokenize(src).filter((t) => t.type !== "comment");
+    const eof = { type: "eof", start: src.length, end: src.length, text: "", value: null, line: 0 };
+    for (const t of toks) {
+      if (t.type !== "bad") continue;
+      if (t.text === "{" || t.text === "}") fail("Corduroy uses square brackets for blocks.", t, "Swap " + t.text + " for " + (t.text === "{" ? "[" : "]") + ".");
+      if (t.text === '"' || t.text === "'" || t.text === "`") fail("There are no quotes in Corduroy.", t, "Colour names are bare words: stripes brick mustard");
+      if (t.text === ";") fail("No semicolons needed.", t, "Just put a space or a new line between commands.");
+      if (t.text === ":") fail("No colons needed.", t, "Blocks go in square brackets: repeat 4 [ go 50 ]");
+      fail("I can't read the character " + t.text, t, "Corduroy is made of words, numbers, and + - * / ( ) [ ].");
+    }
+
+    // Find every `to name a, b [` first, so words can be used above their definition.
+    const defs = Object.create(null);
+    for (let k = 0; k < toks.length - 1; k++) {
+      if (toks[k].type === "id" && toks[k].value === "to" && toks[k + 1].type === "id") {
+        const name = toks[k + 1].value, params = [];
+        let j = k + 2;
+        while (j < toks.length && (toks[j].type === "id" || toks[j].text === ",")) { if (toks[j].type === "id") params.push(toks[j].value); j++; }
+        if (!(name in defs)) defs[name] = { params };
+      }
+    }
+
+    let p = 0, nest = 0;
+    const peek = () => toks[p] || eof;
+    const next = () => toks[p++] || eof;
+    const isOp = (t, v) => t.type === "op" && t.value === v;
+    const prevTok = () => toks[p - 1] || eof;
+    const describe = (t) => (t.type === "eof" ? "the end of the program" : "“" + t.text + "”");
+
+    function startsExpr(t) {
+      if (t.type === "num") return true;
+      if (t.type === "op") return t.value === "(" || t.value === "-";
+      if (t.type !== "id") return false;
+      if (t.value === "not" || t.value in FUNCS) return true;
+      return !(t.value in COMMANDS) && !KEYWORDS.includes(t.value) && !(t.value in defs);
+    }
+
+    // Expressions, lowest precedence first.
+    function expr() { return orExpr(); }
+    function binary(sub, ops, wordOps) {
+      return function self() {
+        let left = sub(), links = 0;
+        for (;;) {
+          const t = peek();
+          const hit = wordOps ? t.type === "id" && ops.includes(t.value) : t.type === "op" && ops.includes(t.value);
+          if (!hit) return left;
+          next();
+          if (++links > 400) fail("This sum goes on too long for me to follow.", t, "Break it up with let.");
+          needExpr(t, "“" + t.text + "” needs something after it.");
+          const right = sub();
+          left = { k: "bin", op: t.value, l: left, r: right, start: left.start, end: right.end };
+        }
+      };
+    }
+    function needExpr(after, msg) {
+      const t = peek();
+      if (startsExpr(t)) return;
+      if (t.type === "id" && t.value in COLORS) fail("“" + t.text + "” is a colour, not a number.", t, "Colours only go after stripes or wall.");
+      if (t.type === "eof" || t.line !== after.line) throw new CordError(msg, after.start, after.end, "");
+      fail(msg + " I found " + describe(t) + " instead.", t);
+    }
+    const mul = binary(unary, ["*", "/", "%"]);
+    const add = binary(mul, ["+", "-"]);
+    const cmp = binary(add, ["<", ">", "<=", ">=", "==", "!="]);
+    function notExpr() {
+      const t = peek();
+      if (t.type === "id" && t.value === "not") {
+        next(); needExpr(t, "“not” needs something after it.");
+        const e = notExpr();
+        return { k: "un", op: "not", e, start: t.start, end: e.end };
+      }
+      return cmp();
+    }
+    const andExpr = binary(notExpr, ["and"], true);
+    const orExpr = binary(andExpr, ["or"], true);
+    function unary() {
+      const t = peek();
+      if (isOp(t, "-")) {
+        next(); needExpr(t, "This minus sign needs a number after it.");
+        if (++nest > LIMITS.nest) fail("That's too many minus signs in a row.", t);
+        const e = unary(); nest--;
+        return { k: "un", op: "-", e, start: t.start, end: e.end };
+      }
+      return primary();
+    }
+    function primary() {
+      const t = next();
+      if (t.type === "num") return { k: "num", v: t.value, start: t.start, end: t.end };
+      if (isOp(t, "(")) {
+        if (++nest > LIMITS.nest) fail("These brackets are nested too deep for me.", t);
+        needExpr(t, "These brackets are empty.");
+        const e = expr();
+        if (!isOp(peek(), ")")) fail("This ( never closes.", t, "Add a ) to finish it.");
+        const close = next(); nest--;
+        return { ...e, start: t.start, end: close.end };
+      }
+      if (t.type === "id") {
+        if (t.value in FUNCS) {
+          const want = FUNCS[t.value];
+          if (!isOp(peek(), "(")) fail("“" + t.value + "” needs brackets after it.", t, "Like " + t.value + (want === 2 ? "(1, 6)" : "(90)"));
+          const open = next(), args = [];
+          if (!isOp(peek(), ")")) {
+            for (;;) {
+              needExpr(open, "“" + t.value + "” needs a number in its brackets.");
+              args.push(expr());
+              if (isOp(peek(), ",")) { next(); continue; }
+              break;
+            }
+          }
+          if (!isOp(peek(), ")")) fail("This ( never closes.", open, "Add a ) to finish it.");
+          const close = next();
+          if (args.length !== want) throw new CordError("“" + t.value + "” takes " + plural(want, "number") + ", but got " + args.length + ".", t.start, close.end, "Like " + t.value + (want === 2 ? "(1, 6)" : "(90)"));
+          return { k: "call", fn: t.value, args, start: t.start, end: close.end };
+        }
+        return { k: "var", name: t.value, start: t.start, end: t.end };
+      }
+      fail("I expected a number here, but found " + describe(t) + ".", t);
+    }
+
+    function block(owner, what) {
+      const open = peek();
+      if (!isOp(open, "[")) {
+        const msg = "“" + owner.text + "” needs a block in square brackets" + (what ? " " + what : "") + ".";
+        if (open.type === "eof" || open.line !== owner.line) throw new CordError(msg, owner.start, owner.end, "Like: " + owner.text + (owner.value === "repeat" ? " 4" : "") + " [ go 50 ]");
+        fail(msg + " I found " + describe(open) + " instead.", open, "Like: " + owner.text + (owner.value === "repeat" ? " 4" : "") + " [ go 50 ]");
+      }
+      next();
+      if (++nest > LIMITS.nest) fail("These blocks are nested too deep for me.", open);
+      const body = [];
+      for (;;) {
+        const t = peek();
+        if (t.type === "eof") fail("This [ never closes.", open, "Add a ] where the block should end.");
+        if (isOp(t, "]")) { next(); break; }
+        body.push(statement(false));
+      }
+      nest--;
+      return body;
+    }
+
+    function colourList(head) {
+      const colors = [];
+      for (;;) {
+        const t = peek();
+        if (isOp(t, ",")) { next(); continue; }
+        if (t.type !== "id") break;
+        if (t.value in COLORS) { colors.push(COLORS[t.value]); next(); continue; }
+        if (t.value in COMMANDS || KEYWORDS.includes(t.value) || t.value in defs) break;
+        if (t.line !== prevTok().line) break;      // a stray word on the next line is not a colour typo
+        const guess = closest(t.value, Object.keys(COLORS));
+        fail("I don't have a colour called “" + t.text + "”.", t, guess ? "Did you mean " + guess + "?" : "The paints are: " + Object.keys(COLORS).join(", ") + ".");
+      }
+      if (!colors.length) {
+        const t = peek();
+        if (t.type !== "eof" && t.line === head.line) fail("“" + head.text + "” needs a colour name, but I found " + describe(t) + ".", t, "Like: " + head.value + " teal");
+        fail("“" + head.text + "” needs " + (head.value === "wall" ? "a colour" : "at least one colour") + " after it.", head, "Like: " + (head.value === "wall" ? "wall teal" : "stripes brick mustard teal"));
+      }
+      return colors;
+    }
+
+    function statement(top) {
+      const t = next();
+      const node = (type, extra) => ({ type, start: t.start, end: t.end, line: t.line, ...extra });
+      if (isOp(t, "]")) fail("This ] doesn't have a [ to close.", t, "Delete it, or add the [ it belongs to.");
+      if (isOp(t, "[")) fail("This block isn't attached to anything.", t, "Put repeat, if, aside or to in front of it.");
+      if (t.type !== "id") fail("I expected a command here, but found " + describe(t) + ".", t, "Lines start with a word, like go or repeat.");
+      const w = t.value;
+
+      if (w in COMMANDS) {
+        if (COMMANDS[w] === 0) return node("cmd", { name: w });
+        needExpr(t, "“" + w + "” needs a number after it, like " + EXAMPLE_ARG[w] + ".");
+        const arg = expr();
+        return node("cmd", { name: w, arg, end: arg.end });
+      }
+      if (w === "stripes") {
+        const colors = colourList(t);
+        if (colors.length > LIMITS.stripes) fail("That's " + colors.length + " stripes. A ribbon holds " + LIMITS.stripes + " at most.", t);
+        return node("stripes", { colors });
+      }
+      if (w === "wall") {
+        const colors = colourList(t);
+        return node("wall", { color: colors[0] });
+      }
+      if (w === "repeat") {
+        needExpr(t, "“repeat” needs to know how many times, like repeat 4 [ … ].");
+        const count = expr();
+        return node("repeat", { count, body: block(t, "to repeat") });
+      }
+      if (w === "if") {
+        needExpr(t, "“if” needs a question, like if x > 5 [ … ].");
+        const cond = expr();
+        const body = block(t);
+        let other = null;
+        const e = peek();
+        if (e.type === "id" && e.value === "else") {
+          next();
+          const after = peek();
+          if (after.type === "id" && after.value === "if") other = [statement(false)];
+          else other = block(e);
+        }
+        return node("if", { cond, body, other });
+      }
+      if (w === "else") fail("This “else” has no “if” before it.", t, "It goes right after an if block: if x > 5 [ … ] else [ … ]");
+      if (w === "aside") return node("aside", { body: block(t) });
+      if (w === "let") {
+        const name = next();
+        if (name.type !== "id") {
+          if (name.type === "eof") fail("“let” needs a name and a value.", t, "Like: let size = 40");
+          fail("“let” needs a name here, but I found " + describe(name) + ".", name, "Like: let size = 40");
+        }
+        if (name.value === "i") fail("“i” is the repeat counter, so it can't be changed.", name, "Pick another name, like n.");
+        if (RESERVED.has(name.value) || name.value in defs) fail("“" + name.text + "” already means something in Corduroy.", name, "Pick another name for your number.");
+        if (!isOp(peek(), "=")) throw new CordError("“let " + name.text + "” needs an = and a value.", t.start, name.end, "Like: let " + name.text + " = 40");
+        const eq = next();
+        needExpr(eq, "“let " + name.text + " =” needs a value after it.");
+        const value = expr();
+        return node("let", { name: name.value, value, end: value.end });
+      }
+      if (w === "to") {
+        if (!top) fail("New words have to be taught at the top level, not inside a block.", t, "Move this “to” outside the [ ].");
+        const name = next();
+        if (name.type !== "id") fail("“to” needs a name for the new word.", name.type === "eof" ? t : name, "Like: to petal size [ go size ]");
+        if (RESERVED.has(name.value)) fail("“" + name.text + "” already means something in Corduroy.", name, "Pick another name for your word.");
+        if (defs[name.value].node) fail("“" + name.text + "” is already taught above.", name, "Each word can only be taught once.");
+        const params = [];
+        for (;;) {
+          const q = peek();
+          if (isOp(q, ",")) { next(); continue; }
+          if (q.type !== "id") break;
+          if (RESERVED.has(q.value)) fail("“" + q.text + "” already means something, so it can't be an input name.", q, "Did you forget the [ before the body?");
+          if (params.includes(q.value)) fail("Two inputs are both called “" + q.text + "”.", q);
+          params.push(q.value); next();
+        }
+        const n = node("to", { name: name.value, params });
+        defs[name.value].node = n;
+        n.body = block(t, "saying what " + name.text + " does");
+        return n;
+      }
+      if (w in defs) {
+        const want = defs[w].params, args = [];
+        for (let k = 0; k < want.length; k++) {
+          if (k > 0) {
+            if (isOp(peek(), ",")) next();
+            else if (!startsExpr(peek())) break;
+          }
+          if (!startsExpr(peek())) break;
+          args.push(expr());
+        }
+        if (args.length !== want.length) {
+          throw new CordError("“" + w + "” needs " + plural(want.length, "number") + " (" + want.join(", ") + "), but got " + (args.length || "none") + ".",
+            t.start, args.length ? args[args.length - 1].end : t.end, "Like: " + w + " " + want.map((_, k) => (k + 1) * 10).join(", "));
+        }
+        return node("call", { name: w, args, end: args.length ? args[args.length - 1].end : t.end });
+      }
+      // Unknown word: work out the most helpful thing to say.
+      if (isOp(peek(), "=")) fail("To remember a number, start with “let”.", t, "Like: let " + w + " = 10");
+      if (w in COLORS) fail("“" + w + "” is a colour, so it needs a command in front.", t, "Like: stripes " + w + "   or   wall " + w);
+      if (w in FUNCS) fail("“" + w + "” works out a number, so it can't start a line.", t, "Use it inside a command: go " + w + (FUNCS[w] === 2 ? "(10, 50)" : "(30)"));
+      if (w in SYNONYMS) {
+        const s = SYNONYMS[w];
+        fail("Corduroy doesn't know “" + t.text + "”.", t, s.length === 1 ? "Blocks use square brackets: repeat 4 [ go 50 ]" : "Here that's called “" + s + "”.");
+      }
+      let guess = closest(w, [...Object.keys(COMMANDS), ...KEYWORDS, ...Object.keys(defs)]);
+      if (!guess) { const other = closest(w, Object.keys(SYNONYMS).filter((k) => SYNONYMS[k].length > 1)); if (other) guess = SYNONYMS[other]; }
+      fail("I don't know the word “" + t.text + "”.", t, guess ? "Did you mean " + guess + "?" : "You can teach it: to " + w + " [ … ]");
+    }
+
+    const body = [];
+    while (peek().type !== "eof") body.push(statement(true));
+    return { body, defs };
+  }
+
+  // ── Evaluator ────────────────────────────────────────────────────────────
+  const RAD = Math.PI / 180;
+  const ribbonWidth = (cfg) => cfg.colors.length * cfg.wide + (cfg.colors.length - 1) * cfg.gap;
+
+  function evaluate(program) {
+    const ops = [];
+    let wall = null, steps = 0, depth = 0;
+    let x = 0, y = 0, h = 0, bend = 0;
+    let cfg = { colors: [COLORS.brick, COLORS.persimmon, COLORS.mustard], wide: 14, gap: 0 };
+    let last = null;           // the last straight run, for mitring sharp corners
+    let seedN = 7, rngState = 0;
+    const setSeed = (n) => { seedN = n; rngState = (Math.floor(n) * 2654435761) >>> 0; };
+    setSeed(7);
+    const rnd = () => {       // mulberry32: same picture every run
+      rngState = (rngState + 0x6d2b79f5) >>> 0;
+      let t = rngState;
+      t = Math.imul(t ^ (t >>> 15), t | 1);
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+    const globals = { vars: new Map(), loops: [] };
+    let frame = globals;
+    const err = (msg, node, hint, soft) => { throw new CordError(msg, node.start, node.end, hint, soft); };
+
+    function tick(node) {
+      if (++steps > LIMITS.steps) err("I stopped after " + LIMITS.steps.toLocaleString("en") + " steps so the page doesn't freeze.", node, "Is something repeating more than it needs to?");
+    }
+    function emit(op, node) {
+      if (ops.length >= LIMITS.strokes) err("That's " + LIMITS.strokes.toLocaleString("en") + " strokes, which is as many as the wall can hold.", node, "The picture so far is still up.", true);
+      op.line = node.line; op.cfg = cfg;
+      ops.push(op);
+    }
+
+    function ev(e) {
+      switch (e.k) {
+        case "num": return e.v;
+        case "var": {
+          if (e.name === "i") {
+            if (!frame.loops.length) err("“i” only counts inside a repeat.", e, "Use it between the [ ] of a repeat.");
+            return frame.loops[frame.loops.length - 1];
+          }
+          if (frame.vars.has(e.name)) return frame.vars.get(e.name);
+          if (globals.vars.has(e.name)) return globals.vars.get(e.name);
+          if (e.name in COLORS) err("“" + e.name + "” is a colour, not a number.", e, "Colours only go after stripes or wall.");
+          if (e.name in program.defs || e.name in COMMANDS || KEYWORDS.includes(e.name)) err("I expected a number here, but “" + e.name + "” is a command.", e);
+          const guess = closest(e.name, [...frame.vars.keys(), ...globals.vars.keys(), ...Object.keys(FUNCS)]);
+          err("I don't know a number called “" + e.name + "”.", e, guess ? "Did you mean " + guess + "?" : "Make it first: let " + e.name + " = 10");
+        }
+        case "un": return e.op === "-" ? -ev(e.e) : ev(e.e) === 0 ? 1 : 0;
+        case "bin": {
+          if (e.op === "and") return ev(e.l) !== 0 && ev(e.r) !== 0 ? 1 : 0;
+          if (e.op === "or") return ev(e.l) !== 0 || ev(e.r) !== 0 ? 1 : 0;
+          const a = ev(e.l), b = ev(e.r);
+          switch (e.op) {
+            case "+": return a + b;
+            case "-": return a - b;
+            case "*": return a * b;
+            case "/": if (b === 0) err("This divides by zero.", e.r, "The number under the / came out as 0."); return a / b;
+            case "%": if (b === 0) err("This takes a remainder by zero.", e.r, "The number after the % came out as 0."); return a - b * Math.floor(a / b);
+            case "<": return a < b ? 1 : 0;
+            case ">": return a > b ? 1 : 0;
+            case "<=": return a <= b ? 1 : 0;
+            case ">=": return a >= b ? 1 : 0;
+            case "==": return Math.abs(a - b) < 1e-9 ? 1 : 0;
+            case "!=": return Math.abs(a - b) < 1e-9 ? 0 : 1;
+          }
+          return 0;
+        }
+        case "call": {
+          const a = e.args.map(ev);
+          switch (e.fn) {
+            case "sin": return Math.sin(a[0] * RAD);
+            case "cos": return Math.cos(a[0] * RAD);
+            case "abs": return Math.abs(a[0]);
+            case "sqrt": if (a[0] < 0) err("I can't take the square root of a negative number.", e.args[0]); return Math.sqrt(a[0]);
+            case "floor": return Math.floor(a[0]);
+            case "round": return Math.round(a[0]);
+            case "min": return Math.min(a[0], a[1]);
+            case "max": return Math.max(a[0], a[1]);
+            case "random": return a[0] + (a[1] - a[0]) * rnd();
+          }
+        }
+      }
+      return 0;
+    }
+    function num(e, what) {
+      const v = ev(e);
+      if (!Number.isFinite(v)) err("This number came out as " + (Number.isNaN(v) ? "not-a-number" : "infinity") + ".", e);
+      if (Math.abs(v) > 1e6) err("This number came out as " + Math.round(v).toLocaleString("en") + ", which is too big for " + what + ".", e, "Keep it under a million.");
+      return v;
+    }
+
+    function straight(d, node) {
+      if (d === 0) return;
+      const W = ribbonWidth(cfg), hr = h * RAD;
+      if (d > 0) {
+        const op = { t: "seg", x, y, h: hr, len: d, sm: 0, em: 0 };
+        if (last && last.W === W) {
+          // A spin between two runs becomes a clean mitred corner, stripe by stripe.
+          let th = ((last.spin % 360) + 540) % 360 - 180;
+          if (Math.abs(th) > 1e-9 && Math.abs(th) <= 152) {
+            const m = Math.tan((th * RAD) / 2), need = (Math.abs(m) * W) / 2, prev = ops[last.idx];
+            if (prev.len >= need + (Math.abs(prev.sm) * W) / 2 && d >= need) { prev.em = m; op.sm = m; }
+          }
+        }
+        emit(op, node);
+        last = { idx: ops.length - 1, spin: 0, W };
+      } else {
+        emit({ t: "seg", x, y, h: hr + Math.PI, len: -d, sm: 0, em: 0 }, node);
+        last = null;
+      }
+      x += Math.cos(hr) * d; y += Math.sin(hr) * d;
+      op_end();
+    }
+    function op_end() { const o = ops[ops.length - 1]; o.ex = x; o.ey = y; }
+    function sweep(deg, node) {           // deg > 0 curves right, < 0 curves left
+      if (deg === 0) return;
+      const side = deg > 0 ? 1 : -1, W = ribbonWidth(cfg), R = W / 2 + bend, hr = h * RAD;
+      const cx = x - Math.sin(hr) * R * side, cy = y + Math.cos(hr) * R * side;
+      const a0 = hr - (Math.PI / 2) * side, sw = deg * RAD;
+      emit({ t: "arc", cx, cy, R, a0, sw, side, len: R * Math.abs(sw) }, node);
+      x = cx + Math.cos(a0 + sw) * R; y = cy + Math.sin(a0 + sw) * R; h += deg;
+      last = null; op_end();
+    }
+
+    function run(body) { for (let k = 0; k < body.length; k++) exec(body[k]); }
+    function exec(s) {
+      tick(s);
+      switch (s.type) {
+        case "cmd": {
+          const v = s.arg ? num(s.arg, s.name) : 0;
+          switch (s.name) {
+            case "go": straight(v, s); break;
+            case "hop": x += Math.cos(h * RAD) * v; y += Math.sin(h * RAD) * v; last = null; break;
+            case "right": sweep(v, s); break;
+            case "left": sweep(-v, s); break;
+            case "spin": h += v; if (last) last.spin += v; break;
+            case "face": if (last) last.spin += v - h; h = v; break;
+            case "bend": if (v < 0) err("“bend” can't be less than 0.", s.arg, "0 makes the tightest curve."); bend = v; break;
+            case "wide": if (v <= 0) err("“wide” needs to be more than 0.", s.arg, "Each stripe needs some width, like wide 12."); cfg = { ...cfg, wide: v }; break;
+            case "gap": if (v < 0) err("“gap” can't be less than 0.", s.arg); cfg = { ...cfg, gap: v }; break;
+            case "dot": if (v > 0) { emit({ t: "dot", x, y, r: v, len: v }, s); op_end(); } break;
+            case "seed": setSeed(v); break;
+            case "shift": cfg = { ...cfg, colors: [...cfg.colors.slice(1), cfg.colors[0]] }; break;
+            case "flip": cfg = { ...cfg, colors: [...cfg.colors].reverse() }; break;
+            case "home": x = 0; y = 0; h = 0; last = null; break;
+          }
+          break;
+        }
+        case "stripes": cfg = { ...cfg, colors: s.colors }; break;
+        case "wall": wall = s.color; break;
+        case "let": {
+          const v = ev(s.value);
+          if (!Number.isFinite(v)) err("This number came out as " + (Number.isNaN(v) ? "not-a-number" : "infinity") + ".", s.value);
+          if (!frame.vars.has(s.name) && frame !== globals && globals.vars.has(s.name)) globals.vars.set(s.name, v);
+          else frame.vars.set(s.name, v);
+          break;
+        }
+        case "repeat": {
+          const n = Math.floor(num(s.count, "repeat"));
+          const loops = frame.loops;
+          loops.push(0);
+          try {
+            for (let k = 1; k <= n; k++) { loops[loops.length - 1] = k; if (k > 1) tick(s); run(s.body); }
+          } finally { loops.pop(); }
+          break;
+        }
+        case "if": if (ev(s.cond) !== 0) run(s.body); else if (s.other) run(s.other); break;
+        case "aside": {
+          const keep = [x, y, h, bend, cfg];
+          last = null;
+          run(s.body);
+          [x, y, h, bend, cfg] = keep; last = null;
+          break;
+        }
+        case "to": break;
+        case "call": {
+          const def = program.defs[s.name].node;
+          const vars = new Map();
+          for (let k = 0; k < def.params.length; k++) vars.set(def.params[k], num(s.args[k], s.name));
+          if (depth >= LIMITS.depth) err("“" + s.name + "” called itself " + LIMITS.depth + " levels deep and never stopped.", s, "Give it an “if” so it knows when to finish.");
+          const outer = frame;
+          frame = { vars, loops: [] }; depth++;
+          try { run(def.body); } finally { frame = outer; depth--; }
+          break;
+        }
+      }
+    }
+
+    let error = null;
+    try { run(program.body); }
+    catch (e) {
+      if (e instanceof CordError) error = e;
+      else if (e instanceof RangeError) error = new CordError("This program tied itself in a knot I couldn't follow.", 0, 1, "Something is calling itself too deeply.");
+      else throw e;
+    }
+    return { ops, wall, steps, error };
+  }
+
+  // ── Geometry shared by the painter and the frame-fitter ──────────────────
+  function bounds(ops) {
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    const add = (px, py) => { if (px < x0) x0 = px; if (px > x1) x1 = px; if (py < y0) y0 = py; if (py > y1) y1 = py; };
+    for (const op of ops) {
+      const W = ribbonWidth(op.cfg);
+      if (op.t === "seg") {
+        const c = Math.cos(op.h), s = Math.sin(op.h);
+        for (const o of [-W / 2, W / 2]) {
+          for (const d of [o * op.sm, op.len - o * op.em]) add(op.x + c * d - s * o, op.y + s * d + c * o);
+        }
+      } else if (op.t === "arc") {
+        const r = op.R + W / 2;
+        if (Math.abs(op.sw) >= Math.PI * 2) { add(op.cx - r, op.cy - r); add(op.cx + r, op.cy + r); }
+        else {
+          const n = Math.max(2, Math.ceil(Math.abs(op.sw) / 0.15));
+          for (let k = 0; k <= n; k++) { const a = op.a0 + (op.sw * k) / n; add(op.cx + Math.cos(a) * r, op.cy + Math.sin(a) * r); }
+          const ri = Math.max(0, op.R - W / 2);
+          add(op.cx + Math.cos(op.a0) * ri, op.cy + Math.sin(op.a0) * ri);
+          add(op.cx + Math.cos(op.a0 + op.sw) * ri, op.cy + Math.sin(op.a0 + op.sw) * ri);
+        }
+      } else { add(op.x - op.r, op.y - op.r); add(op.x + op.r, op.y + op.r); }
+    }
+    return x0 === Infinity ? null : { x0, y0, x1, y1 };
+  }
+
+  /** Run a program from source. Never throws; never runs forever. */
+  function run(src) {
+    let program;
+    try { program = parse(String(src)); }
+    catch (e) {
+      if (e instanceof CordError) return { ok: false, stage: "parse", error: e, ops: [], wall: null, steps: 0, bounds: null };
+      if (e instanceof RangeError) return { ok: false, stage: "parse", error: new CordError("This program is nested too deep for me to read.", 0, 1), ops: [], wall: null, steps: 0, bounds: null };
+      throw e;
+    }
+    const r = evaluate(program);
+    return { ok: !r.error, stage: "run", error: r.error, ops: r.ops, wall: r.wall, steps: r.steps, bounds: bounds(r.ops) };
+  }
+
+  return { run, tokenize, parse, COLORS, COMMANDS, KEYWORDS, FUNCS, LIMITS, ribbonWidth };
+})();
+/*CORE-END*/
+
+/*EXAMPLES-START*/
+const EXAMPLES = [
+  { id: "hello", name: "Hello", code: `# Hello, Corduroy.
+# Your pen is a ribbon of stripes.
+# Tell it where to go.
+
+stripes brick persimmon mustard
+go 170
+right 90
+go 60
+left 90
+go 170
+` },
+  { id: "stairs", name: "Stairs", code: `# Over, up, over, up.
+# spin pivots on the spot, so corners stay sharp.
+# Press Play: climbing sounds like climbing.
+
+stripes umber brick persimmon mustard
+wide 9
+repeat 7 [
+  go 78  spin -90
+  go 52  spin 90
+]
+go 78
+` },
+  { id: "rainbow", name: "Rainbow", code: `# A rainbow is half a turn.
+
+wall sky
+stripes brick persimmon mustard avocado teal
+wide 16
+bend 40
+face -90
+go 60
+right 180
+go 60
+
+# then hop back for a sun
+home  hop 80
+face -90  hop 30
+stripes cream mustard persimmon
+dot 30
+` },
+  { id: "wave", name: "Wave", code: `# right and left sweep round a curve.
+# bend sets how wide the curve swings.
+
+wall umber
+stripes mustard persimmon brick blush
+wide 13
+bend 16
+face -90
+repeat 3 [
+  right 180
+  left 180
+]
+` },
+  { id: "zigzag", name: "Zigzag", code: `# Teach Corduroy a new word with "to".
+
+to zig [
+  repeat 4 [
+    spin -55  go 90
+    spin 110  go 90
+    spin -55
+  ]
+]
+
+wall teal
+stripes cream mustard persimmon brick
+wide 10
+repeat 3 [
+  aside [ zig ]
+  spin 90  hop 96  spin -90
+  shift
+]
+` },
+  { id: "sunburst", name: "Sunburst", code: `# i counts the laps of a repeat: 1, 2, 3…
+# aside means: do this, then come back.
+
+wall teal
+stripes mustard persimmon
+wide 6
+repeat 24 [
+  aside [
+    hop 84
+    go 44 + 44 * (i % 2)
+  ]
+  spin 15
+]
+stripes brick persimmon mustard cream
+dot 66
+` },
+  { id: "spiral", name: "Spiral", code: `# let remembers a number.
+# Each side is a little longer than the last.
+
+wall umber
+stripes teal cream persimmon
+wide 6
+gap 3
+bend 6
+let side = 4
+repeat 34 [
+  go side
+  right 90
+  let side = side + 16
+]
+` },
+  { id: "bloom", name: "Bloom", code: `# Ten petals: out, all the way round, and back.
+
+wall umber
+stripes brick persimmon mustard cream
+wide 6
+bend 30
+repeat 10 [
+  aside [ go 60  right 360 ]
+  spin 36
+]
+stripes mustard persimmon brick
+dot 26
+` },
+  { id: "tree", name: "Tree", code: `# A word can use itself.
+# Each branch grows two smaller branches.
+
+to branch size [
+  if size > 12 [
+    wide size / 11
+    go size
+    aside [ left 32   branch size * 0.74 ]
+    aside [ right 26  branch size * 0.78 ]
+  ]
+]
+
+wall sand
+stripes umber avocado
+bend 26
+face -90
+branch 120
+` },
+  { id: "tiles", name: "Tiles", code: `# Every tile gets two quarter turns,
+# one way or the other. random decides.
+# Change the seed to deal a new wall.
+
+to tile way [
+  aside [ hop 22  face 90  curve way ]
+  aside [ hop 22  face 90  hop 44  face -90  curve way ]
+]
+to curve way [
+  if way < 1 [ right 90 ] else [ left 90 ]
+]
+
+seed 4
+wall umber
+stripes mustard persimmon brick persimmon mustard
+wide 4
+bend 12
+repeat 8 [
+  aside [ repeat 11 [ tile random(0, 2)  hop 44 ] ]
+  face 90  hop 44  face 0
+]
+` },
+];
+/*EXAMPLES-END*/
+
+// ═══════════════════════════════════════════════════════════════════════════
+// The playground
+// ═══════════════════════════════════════════════════════════════════════════
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const code = $("code"), hl = $("hl"), er = $("er"), gutter = $("gutter"), runband = $("runband");
+  const statusEl = $("status"), stage = $("stage"), cv = $("cv"), ov = $("ov");
+  const ctx = cv.getContext("2d"), octx = ov.getContext("2d");
+  const playBtn = $("play"), scrub = $("scrub"), soundBtn = $("sound");
+  const { COLORS, COMMANDS, KEYWORDS, FUNCS } = Corduroy;
+  const HEX_NAME = Object.fromEntries(Object.entries(COLORS).map(([k, v]) => [v, k]));
+  const DEFAULT_WALL = "#fff6e6";
+  const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  // ── Painting ─────────────────────────────────────────────────────────────
+  // Each stroke is drawn stripe by stripe. `f` (0..1) is how much of the
+  // stroke exists yet, which is all the animation needs.
+  function drawOp(c, op, f, px) {
+    const { colors, wide, gap } = op.cfg, n = colors.length;
+    const W = n * wide + (n - 1) * gap;
+    if (op.t === "dot") {
+      const g = 1 - Math.pow(1 - f, 3);
+      for (let k = 0; k < n; k++) {
+        c.fillStyle = colors[k];
+        c.beginPath(); c.arc(op.x, op.y, (op.r * g * (n - k)) / n, 0, Math.PI * 2); c.fill();
+      }
+      return;
+    }
+    if (op.t === "seg") {
+      const cs = Math.cos(op.h), sn = Math.sin(op.h);
+      c.lineWidth = px * 0.8; c.lineJoin = "round";
+      for (let k = 0; k < n; k++) {
+        const a = -W / 2 + k * (wide + gap), b = a + wide;
+        const sa = a * op.sm, sb = b * op.sm;
+        const ea = sa + f * (op.len - a * op.em - sa), eb = sb + f * (op.len - b * op.em - sb);
+        c.beginPath();
+        c.moveTo(op.x + cs * sa - sn * a, op.y + sn * sa + cs * a);
+        c.lineTo(op.x + cs * ea - sn * a, op.y + sn * ea + cs * a);
+        c.lineTo(op.x + cs * eb - sn * b, op.y + sn * eb + cs * b);
+        c.lineTo(op.x + cs * sb - sn * b, op.y + sn * sb + cs * b);
+        c.closePath();
+        c.fillStyle = c.strokeStyle = colors[k];
+        c.fill(); c.stroke();
+      }
+      return;
+    }
+    c.lineCap = "butt";
+    c.lineWidth = wide + px * 0.8;
+    for (let k = 0; k < n; k++) {
+      const mid = -W / 2 + k * (wide + gap) + wide / 2;
+      const r = Math.max(op.R - op.side * mid, wide / 2);
+      const lead = Math.min(0.02, (px * 0.6) / r) * Math.sign(op.sw);   // overlap the neighbours a hair, so no seams
+      c.strokeStyle = colors[k];
+      c.beginPath(); c.arc(op.cx, op.cy, r, op.a0 - lead, op.a0 + op.sw * f + (f >= 1 ? lead : 0), op.sw < 0); c.stroke();
+    }
+  }
+  function headOf(op, f) {
+    if (op.t === "seg") return { x: op.x + Math.cos(op.h) * op.len * f, y: op.y + Math.sin(op.h) * op.len * f, h: op.h };
+    if (op.t === "arc") { const a = op.a0 + op.sw * f; return { x: op.cx + Math.cos(a) * op.R, y: op.cy + Math.sin(a) * op.R, h: a + (Math.PI / 2) * op.side }; }
+    return { x: op.x, y: op.y, h: null };
+  }
+  function fitView(b, w, h, pad, maxScale) {
+    if (!b) return { s: 1, ox: w / 2, oy: h / 2 };
+    const bw = Math.max(b.x1 - b.x0, 1), bh = Math.max(b.y1 - b.y0, 1);
+    const s = Math.min((w - pad * 2) / bw, (h - pad * 2) / bh, maxScale);
+    return { s, ox: w / 2 - ((b.x0 + b.x1) / 2) * s, oy: h / 2 - ((b.y0 + b.y1) / 2) * s };
+  }
+
+  // ── State ────────────────────────────────────────────────────────────────
+  let shown = null;            // the result on the wall (last one that parsed)
+  let cum = [0], total = 0;    // timeline: cumulative cost per stroke
+  let view = { s: 1, ox: 0, oy: 0 }, cw = 0, ch = 0, dpr = 1;
+  let playT = 0, playing = false, drawn = 0, lastFrame = 0, speed = 1, sounded = -1, raf = 0;
+  let lastError = null, userWords = new Set();
+
+  function setTimeline(res) {
+    const ops = res.ops;
+    let sum = 0;
+    for (const op of ops) sum += op.len;
+    const floor = ops.length ? (sum / ops.length) * 0.3 : 1;
+    cum = [0];
+    for (const op of ops) cum.push(cum[cum.length - 1] + Math.max(op.len, floor));
+    total = cum[cum.length - 1];
+  }
+  const duration = () => Math.min(13, Math.max(2.4, 1.2 + (shown ? shown.ops.length : 0) * 0.085)) * speed;
+
+  function resize() {
+    const r = stage.getBoundingClientRect();
+    dpr = Math.min(window.devicePixelRatio || 1, 2.5);
+    cw = Math.max(1, Math.round(r.width)); ch = Math.max(1, Math.round(r.height));
+    for (const c of [cv, ov]) { c.width = Math.round(cw * dpr); c.height = Math.round(ch * dpr); }
+    refit(); redraw();
+  }
+  function refit() {
+    const pad = Math.max(18, Math.min(cw, ch) * 0.07);
+    view = fitView(shown && shown.bounds, cw, ch, pad, 2.4);
+  }
+  function wallOf(res) { return (res && res.wall) || DEFAULT_WALL; }
+  function clearWall(c, w, h, res) {
+    c.setTransform(1, 0, 0, 1, 0, 0);
+    c.fillStyle = wallOf(res); c.fillRect(0, 0, w, h);
+  }
+  function useView(c, v, k) { c.setTransform(v.s * k, 0, 0, v.s * k, v.ox * k, v.oy * k); }
+
+  /** Paint everything up to time t from scratch. */
+  function redraw() {
+    clearWall(ctx, cv.width, cv.height, shown);
+    stage.style.backgroundColor = wallOf(shown);
+    stage.classList.toggle("blank", !shown || !shown.ops.length);
+    drawn = 0;
+    if (shown) advance(playT);
+    drawHead();
+  }
+  /** Paint only what's new since the last call (time only moves forward here). */
+  function advance(t) {
+    const ops = shown.ops, px = 1 / (view.s * dpr);
+    useView(ctx, view, dpr);
+    while (drawn < ops.length && cum[drawn + 1] <= t) { drawOp(ctx, ops[drawn], 1, px); drawn++; }
+    if (drawn < ops.length && t > cum[drawn]) drawOp(ctx, ops[drawn], (t - cum[drawn]) / (cum[drawn + 1] - cum[drawn]), px);
+  }
+  function drawHead() {
+    octx.setTransform(1, 0, 0, 1, 0, 0);
+    octx.clearRect(0, 0, ov.width, ov.height);
+    let line = -1;
+    if (shown && shown.ops.length && playT < total && (playing || playT > 0)) {
+      const k = Math.min(drawn, shown.ops.length - 1), op = shown.ops[k];
+      const f = Math.min(1, Math.max(0, (playT - cum[k]) / (cum[k + 1] - cum[k])));
+      const p = headOf(op, f);
+      line = op.line;
+      octx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      octx.translate(p.x * view.s + view.ox, p.y * view.s + view.oy);
+      octx.lineWidth = 2; octx.strokeStyle = "#241006"; octx.fillStyle = "#fff6e6"; octx.lineJoin = "round";
+      octx.beginPath();
+      if (p.h === null) octx.arc(0, 0, 6, 0, Math.PI * 2);
+      else { octx.rotate(p.h); octx.moveTo(11, 0); octx.lineTo(-6, -8); octx.lineTo(-2, 0); octx.lineTo(-6, 8); octx.closePath(); }
+      octx.fill(); octx.stroke();
+    }
+    showRunLine(line);
+  }
+
+  // ── Playback ─────────────────────────────────────────────────────────────
+  function frame(now) {
+    if (!playing) return;
+    const dt = Math.min(0.05, (now - lastFrame) / 1000); lastFrame = now;
+    playT = Math.min(total, playT + (total / duration()) * dt);
+    advance(playT);
+    const k = Math.min(drawn, shown.ops.length - 1);
+    if (k > sounded && playT < total) { sounded = k; sing(shown.ops[k], (cum[k + 1] - cum[k]) / (total / duration())); }
+    scrub.value = total ? Math.round((playT / total) * 1000) : 1000;
+    if (playT >= total) { stop(); return; }
+    drawHead();
+    raf = requestAnimationFrame(frame);
+  }
+  function play(fromStart) {
+    if (!shown || !shown.ops.length) return;
+    if (fromStart || playT >= total) { playT = 0; sounded = -1; redraw(); }
+    playing = true; lastFrame = performance.now();
+    playBtn.textContent = "Pause";
+    cancelAnimationFrame(raf); raf = requestAnimationFrame(frame);
+  }
+  function stop() {
+    playing = false; cancelAnimationFrame(raf);
+    playBtn.textContent = playT >= total || playT === 0 ? "Play" : "Resume";
+    drawHead();
+  }
+  function showAll() {
+    playing = false; cancelAnimationFrame(raf);
+    playT = total; scrub.value = 1000; playBtn.textContent = "Play";
+    redraw();
+  }
+
+  // ── Sound: every stroke plucks a note; higher on the wall is higher in pitch ──
+  let ac = null, master = null, soundOn = true, lastNote = 0;
+  const SCALE = [0, 2, 4, 7, 9];
+  function audio() {
+    if (!soundOn) return;
+    try {
+      if (!ac) {
+        ac = new (window.AudioContext || window.webkitAudioContext)();
+        master = ac.createGain(); master.gain.value = 0.32;
+        const lp = ac.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 3200;
+        const delay = ac.createDelay(0.5), fb = ac.createGain(), wet = ac.createGain();
+        delay.delayTime.value = 0.19; fb.gain.value = 0.28; wet.gain.value = 0.22;
+        master.connect(lp); lp.connect(ac.destination);
+        lp.connect(delay); delay.connect(fb); fb.connect(delay); delay.connect(wet); wet.connect(ac.destination);
+      }
+      if (ac.state === "suspended") ac.resume();
+    } catch (e) { ac = null; }
+  }
+  function freqAt(y) {
+    const b = shown.bounds, span = b.y1 - b.y0;
+    const v = span > 1 ? 1 - (y - b.y0) / span : 0.5;
+    const deg = Math.round(Math.min(1, Math.max(0, v)) * 13);
+    const midi = 50 + 12 * Math.floor(deg / 5) + SCALE[deg % 5];
+    return 440 * Math.pow(2, (midi - 69) / 12);
+  }
+  function pluck(f0, f1, dur, vol) {
+    const t = ac.currentTime, g = ac.createGain(), o = ac.createOscillator(), o2 = ac.createOscillator(), g2 = ac.createGain();
+    o.type = "triangle"; o2.type = "sine"; g2.gain.value = 0.25;
+    o.frequency.setValueAtTime(f0, t); o2.frequency.setValueAtTime(f0 * 2, t);
+    if (f1 !== f0) { o.frequency.exponentialRampToValueAtTime(f1, t + dur * 0.8); o2.frequency.exponentialRampToValueAtTime(f1 * 2, t + dur * 0.8); }
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(vol, t + 0.008);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g); o2.connect(g2); g2.connect(g); g.connect(master);
+    o.start(t); o2.start(t); o.stop(t + dur + 0.05); o2.stop(t + dur + 0.05);
+  }
+  function sing(op, seconds) {
+    if (!soundOn || !ac || ac.state !== "running") return;
+    const now = performance.now();
+    if (now - lastNote < 42) return;
+    lastNote = now;
+    const dur = Math.min(1.1, Math.max(0.22, seconds * 1.5));
+    if (op.t === "dot") { const f = freqAt(op.y); pluck(f, f, 0.9, 0.5); pluck(f * 1.5, f * 1.5, 0.9, 0.3); pluck(f * 2, f * 2, 0.9, 0.22); return; }
+    if (op.t === "arc") { const h0 = headOf(op, 0); pluck(freqAt(h0.y), freqAt(op.ey), dur, 0.5); return; }
+    const f = freqAt(op.ey); pluck(f, f, dur, 0.55);
+  }
+
+  // ── Editor: highlight layer, error layer, gutter ─────────────────────────
+  const esc = (s) => s.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
+  function textOn(hex) {
+    const r = parseInt(hex.slice(1, 3), 16), g = parseInt(hex.slice(3, 5), 16), b = parseInt(hex.slice(5, 7), 16);
+    return r * 0.299 + g * 0.587 + b * 0.114 > 150 ? "#241006" : "#fff6e6";
+  }
+  function highlight(src) {
+    const toks = Corduroy.tokenize(src);
+    userWords = new Set();
+    for (let k = 0; k < toks.length - 1; k++) if (toks[k].value === "to" && toks[k + 1].type === "id") userWords.add(toks[k + 1].value);
+    let out = "", at = 0;
+    for (const t of toks) {
+      out += esc(src.slice(at, t.start));
+      const text = esc(t.text);
+      let cls = "";
+      if (t.type === "comment") cls = "t-com";
+      else if (t.type === "num") cls = "t-num";
+      else if (t.type === "op") cls = "t-op";
+      else if (t.type === "bad") cls = "t-bad";
+      else if (t.value in COLORS) { out += '<span class="t-col" style="background:' + COLORS[t.value] + ";color:" + textOn(COLORS[t.value]) + '">' + text + "</span>"; at = t.end; continue; }
+      else if (t.value in COMMANDS || t.value === "stripes" || t.value === "wall") cls = "t-cmd";
+      else if (KEYWORDS.includes(t.value)) cls = "t-kw";
+      else if (t.value in FUNCS) cls = "t-fn";
+      else if (userWords.has(t.value)) cls = "t-user";
+      out += cls ? '<span class="' + cls + '">' + text + "</span>" : text;
+      at = t.end;
+    }
+    hl.innerHTML = out + esc(src.slice(at)) + "\n";
+  }
+  function lineOf(src, pos) { let n = 0; for (let k = 0; k < pos && k < src.length; k++) if (src.charCodeAt(k) === 10) n++; return n; }
+  let gutterLines = 0, gutterBad = -1, gutterRun = -1;
+  function drawGutter(force) {
+    const src = code.value, n = src.split("\n").length;
+    const bad = lastError ? lineOf(src, lastError.start) : -1;
+    if (!force && n === gutterLines && bad === gutterBad) return;
+    gutterLines = n; gutterBad = bad; gutterRun = -1;
+    let html = "";
+    for (let k = 0; k < n; k++) html += "<span" + (k === bad ? ' class="bad"' : "") + ">" + (k + 1) + "</span>";
+    gutter.innerHTML = html;
+  }
+  function showRunLine(line) {
+    if (line === gutterRun) return;
+    const kids = gutter.children;
+    if (gutterRun >= 0 && kids[gutterRun] && gutterRun !== gutterBad) kids[gutterRun].className = "";
+    gutterRun = line;
+    if (line >= 0 && kids[line] && line !== gutterBad) kids[line].className = "run";
+    placeRunBand();
+  }
+  function placeRunBand() {
+    if (gutterRun < 0) { runband.style.display = "none"; return; }
+    const cs = getComputedStyle(code);
+    runband.style.display = "block";
+    runband.style.top = parseFloat(cs.paddingTop) + gutterRun * parseFloat(cs.lineHeight) - code.scrollTop + "px";
+  }
+  function drawError() {
+    const src = code.value;
+    if (!lastError) { er.textContent = ""; return; }
+    let a = Math.min(lastError.start, src.length), b = Math.min(lastError.end, src.length);
+    // An error at the very end (or on a line break) underlines the last thing before it.
+    while (a > 0 && (a >= src.length || /\s/.test(src[a])) && b - a <= 1) { a--; b = a + 1; }
+    if (b <= a) b = a + 1;
+    er.innerHTML = esc(src.slice(0, a)) + "<u>" + esc(src.slice(a, b)) + "</u>" + esc(src.slice(b)) + "\n";
+  }
+  function syncScroll() {
+    const t = "translate(" + -code.scrollLeft + "px," + -code.scrollTop + "px)";
+    hl.style.transform = t; er.style.transform = t;
+    gutter.style.transform = "translateY(" + -code.scrollTop + "px)";
+    placeRunBand();
+  }
+
+  function showStatus(res) {
+    const e = res.error;
+    statusEl.className = "status" + (e ? (e.soft ? " warn" : " err") : "");
+    if (e) {
+      const ln = lineOf(code.value, e.start) + 1;
+      statusEl.innerHTML = '<span class="pill">' + (e.soft ? "Full" : "Line " + ln) + "</span><span><b>" + esc(e.message) + "</b>" + (e.hint ? ' <span class="hint">' + esc(e.hint) + "</span>" : "") + "</span>";
+    } else if (!res.ops.length) {
+      statusEl.innerHTML = '<span class="pill">Ready</span><span class="hint">Nothing drawn yet. Try <code>go 100</code>.</span>';
+    } else {
+      statusEl.innerHTML = '<span class="pill">OK</span><span class="hint">' + res.ops.length.toLocaleString("en") + (res.ops.length === 1 ? " stroke" : " strokes") + " in " + res.steps.toLocaleString("en") + " steps. Press Play to watch and hear it.</span>";
+    }
+  }
+
+  // ── Run ──────────────────────────────────────────────────────────────────
+  function runNow(animate) {
+    const res = Corduroy.run(code.value);
+    lastError = res.error && !res.error.soft ? res.error : null;
+    drawError(); drawGutter(true); showStatus(res);
+    const stale = res.stage === "parse";
+    stage.classList.toggle("stale", stale && !!shown && shown.ops.length > 0);
+    if (!stale) {
+      shown = res; setTimeline(res); refit();
+      if (animate && res.ops.length && !reduceMotion) play(true); else showAll();
+    } else if (!shown) { redraw(); }
+    return res;
+  }
+  let runTimer = 0, hashTimer = 0;
+  function onEdit() {
+    highlight(code.value); drawGutter(false); syncScroll();
+    if (playing) showAll();
+    clearTimeout(runTimer); runTimer = setTimeout(() => runNow(false), 110);
+    clearTimeout(hashTimer); hashTimer = setTimeout(saveHash, 450);
+    markExample();
+  }
+
+  // ── Sharing: the program lives in the URL hash ───────────────────────────
+  function encode(s) {
+    const bytes = new TextEncoder().encode(s); let bin = "";
+    for (let k = 0; k < bytes.length; k++) bin += String.fromCharCode(bytes[k]);
+    return btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  }
+  function decode(s) {
+    try {
+      const bin = atob(s.replace(/-/g, "+").replace(/_/g, "/"));
+      return new TextDecoder().decode(Uint8Array.from(bin, (c) => c.charCodeAt(0)));
+    } catch (e) { return null; }
+  }
+  function currentHash() {
+    const ex = EXAMPLES.find((x) => x.code === code.value);
+    return ex ? "#ex=" + ex.id : "#c=" + encode(code.value);
+  }
+  function saveHash() { try { history.replaceState(null, "", currentHash()); } catch (e) {} }
+  function readHash() {
+    let h = location.hash;
+    // Inside the site's frame, a shared link puts the hash on the outer page.
+    if (!h) { try { if (window.parent !== window) h = window.parent.location.hash; } catch (e) {} }
+    const q = new URLSearchParams((h || "").replace(/^#/, ""));
+    let src = null;
+    if (q.has("c")) src = decode(q.get("c"));
+    if (src === null && q.has("ex")) { const ex = EXAMPLES.find((x) => x.id === q.get("ex")); if (ex) src = ex.code; }
+    return { src, still: q.has("still") };
+  }
+  function shareUrl() {
+    let base = location.origin + location.pathname;
+    try { if (window.parent !== window) base = window.parent.location.origin + window.parent.location.pathname; } catch (e) {}
+    return base + currentHash();
+  }
+  let toastTimer = 0;
+  function toast(msg) {
+    const t = $("toast"); t.textContent = msg; t.classList.add("on");
+    clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove("on"), 1900);
+  }
+
+  // ── Wiring ───────────────────────────────────────────────────────────────
+  function insert(text) {
+    code.focus();
+    if (!document.execCommand || !document.execCommand("insertText", false, text)) {
+      code.setRangeText(text, code.selectionStart, code.selectionEnd, "end");
+      onEdit();
+    }
+  }
+  code.addEventListener("input", onEdit);
+  code.addEventListener("scroll", syncScroll);
+  code.addEventListener("keydown", (e) => {
+    if (e.key === "Tab" && !e.shiftKey && !e.metaKey && !e.ctrlKey && !e.altKey) { e.preventDefault(); insert("  "); }
+    else if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); audio(); runNow(true); }
+    else if (e.key === "Enter" && !e.shiftKey && !e.altKey && code.selectionStart === code.selectionEnd) {
+      const pos = code.selectionStart, src = code.value;
+      const lineStart = src.lastIndexOf("\n", pos - 1) + 1, lineText = src.slice(lineStart, pos);
+      let indent = lineText.match(/^[ \t]*/)[0];
+      if (/\[\s*$/.test(lineText)) indent += "  ";
+      if (indent) { e.preventDefault(); insert("\n" + indent); }
+    } else if (e.key === "]" && code.selectionStart === code.selectionEnd) {
+      // Typing ] on an indented blank line steps it back out.
+      const pos = code.selectionStart, src = code.value, lineStart = src.lastIndexOf("\n", pos - 1) + 1;
+      if (/^ {2,}$/.test(src.slice(lineStart, pos))) { code.setSelectionRange(pos - 2, pos); }
+    }
+  });
+  statusEl.addEventListener("click", () => {
+    if (!lastError) return;
+    code.focus(); code.setSelectionRange(Math.min(lastError.start, code.value.length), Math.min(lastError.end, code.value.length));
+  });
+
+  playBtn.addEventListener("click", () => { audio(); if (playing) stop(); else play(false); });
+  $("speed").addEventListener("click", (e) => {
+    const b = e.target.closest("button"); if (!b) return;
+    for (const x of $("speed").children) x.setAttribute("aria-pressed", x === b ? "true" : "false");
+    speed = parseFloat(b.dataset.v);
+  });
+  scrub.addEventListener("input", () => {
+    if (!shown) return;
+    audio();
+    const was = playT;
+    playing = false; cancelAnimationFrame(raf);
+    playT = (scrub.value / 1000) * total;
+    if (playT >= was) { advance(playT); } else redraw();
+    const k = Math.min(drawn, shown.ops.length - 1);
+    if (k >= 0 && k !== sounded && playT < total) { sounded = k; sing(shown.ops[k], 0.2); }
+    playBtn.textContent = playT >= total || playT === 0 ? "Play" : "Resume";
+    drawHead();
+  });
+  soundBtn.addEventListener("click", () => {
+    soundOn = !soundOn;
+    soundBtn.setAttribute("aria-pressed", soundOn ? "true" : "false");
+    soundBtn.textContent = soundOn ? "Sound on" : "Sound off";
+    if (soundOn) audio(); else if (ac) ac.suspend();
+  });
+  $("png").addEventListener("click", () => {
+    if (!shown || !shown.ops.length) { toast("Nothing to save yet"); return; }
+    const w = 2000, h = Math.round((2000 * ch) / cw), c = document.createElement("canvas");
+    c.width = w; c.height = h;
+    const g = c.getContext("2d"), v = fitView(shown.bounds, w, h, Math.min(w, h) * 0.08, 40);
+    clearWall(g, w, h, shown); useView(g, v, 1);
+    for (const op of shown.ops) drawOp(g, op, 1, 1 / v.s);
+    c.toBlob((blob) => {
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob); a.download = "corduroy.png";
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+      toast("Saved corduroy.png");
+    }, "image/png");
+  });
+  $("share").addEventListener("click", async () => {
+    saveHash();
+    const url = shareUrl();
+    try { await navigator.clipboard.writeText(url); toast("Link copied. Send it to someone."); }
+    catch (e) {
+      const t = document.createElement("textarea"); t.value = url; document.body.appendChild(t); t.select();
+      let ok = false; try { ok = document.execCommand("copy"); } catch (e2) {}
+      t.remove(); toast(ok ? "Link copied. Send it to someone." : "Copy the address bar to share");
+    }
+  });
+  $("refhead").addEventListener("click", () => {
+    const closed = $("ref").classList.toggle("closed");
+    $("refhead").setAttribute("aria-expanded", closed ? "false" : "true");
+    $("reftog").textContent = closed ? "Show" : "Hide";
+  });
+
+  const nav = $("examples");
+  for (const ex of EXAMPLES) {
+    const b = document.createElement("button");
+    b.className = "chip"; b.textContent = ex.name; b.dataset.id = ex.id; b.setAttribute("aria-pressed", "false");
+    b.addEventListener("click", () => { audio(); load(ex.code, true); saveHash(); });
+    nav.appendChild(b);
+  }
+  function markExample() {
+    const v = code.value;
+    for (const b of nav.querySelectorAll(".chip")) b.setAttribute("aria-pressed", EXAMPLES.find((x) => x.id === b.dataset.id).code === v ? "true" : "false");
+  }
+  const sw = $("swatches");
+  for (const [name, hex] of Object.entries(COLORS)) {
+    const b = document.createElement("button");
+    b.textContent = name; b.style.background = hex; b.style.color = textOn(hex);
+    b.title = "Insert " + name;
+    b.addEventListener("click", () => {
+      const pos = code.selectionStart, before = code.value[pos - 1];
+      insert((before && !/\s/.test(before) ? " " : "") + name + " ");
+    });
+    sw.appendChild(b);
+  }
+
+  function load(src, animate) {
+    clearTimeout(runTimer);
+    code.value = src; code.scrollTop = 0; code.scrollLeft = 0;
+    highlight(src); syncScroll(); markExample();
+    runNow(animate);
+  }
+
+  new ResizeObserver(resize).observe(stage);
+  window.addEventListener("hashchange", () => { const h = readHash(); if (h.src !== null && h.src !== code.value) load(h.src, false); });
+  if (matchMedia("(max-width: 820px)").matches) $("refhead").click();
+
+  const start = readHash();
+  resize();
+  load(start.src !== null ? start.src : EXAMPLES[0].code, !start.still);
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(syncScroll);
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,299 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lights Out, Script Off</title>
+<link rel="stylesheet" href="../kit.css">
+<!-- There is no JavaScript on this page. Not hidden, not inlined, not loaded later.
+     Everything below is HTML checkboxes and one stylesheet. -->
+<style>
+  :root { --mustard: #f4c04e; --teal: #1f6b70; --avocado: #66733a; --lamp: #f4c04e; --dark: #3a1c0c; }
+  html, body { height: 100%; }
+  body {
+    overflow: auto;
+    /* a painted corner: three fat quarter-rings */
+    background:
+      radial-gradient(circle at 100% 0, var(--brick) 0 10vmin, var(--persimmon) 10vmin 20vmin, var(--mustard) 20vmin 30vmin, transparent 30vmin),
+      var(--plaster);
+  }
+  main {
+    min-height: 100%; max-width: 1180px; margin: 0 auto; padding: clamp(14px, 4vw, 48px);
+    display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: clamp(18px, 5vw, 72px);
+  }
+
+  .intro { align-self: center; max-width: 30em; }
+  .badge {
+    display: inline-block; margin: 0 0 14px; padding: 6px 12px; border: 2px solid var(--umber); border-radius: 999px;
+    background: var(--mustard); font-weight: 800; font-size: 13px; letter-spacing: 0.02em; transform: rotate(-2deg);
+    box-shadow: 3px 3px 0 var(--umber);
+  }
+  h1 {
+    margin: 0 0 12px; font-family: var(--display); font-weight: 900; font-variation-settings: "wdth" 140;
+    font-size: clamp(30px, 5.4vw, 68px); line-height: 0.92; letter-spacing: -0.02em; text-transform: uppercase;
+  }
+  h1 em { font-style: normal; color: var(--brick); }
+  .hook { margin: 0 0 18px; font-size: clamp(15px, 1.5vw, 18px); font-weight: 600; color: var(--ink-2); max-width: 26em; }
+  .levels { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+  .levels .seg { background: var(--plaster); }
+  .levels .seg label {
+    display: grid; place-items: center; min-width: 42px; min-height: 40px; border-left: 2px solid var(--umber);
+    font-weight: 800; font-size: 15px; cursor: pointer;
+  }
+  .levels .seg label:first-child { border-left: 0; }
+
+  details.how { position: relative; }
+  details.how summary { list-style: none; width: max-content; }
+  details.how summary::-webkit-details-marker { display: none; }
+  details.how[open] summary { background: var(--umber); color: var(--plaster); }
+  details.how .panel { position: absolute; z-index: 5; left: 0; bottom: calc(100% + 10px); width: min(30em, calc(100vw - 32px)); max-height: 80vh; overflow: auto; }
+  details.how p { margin: 0 0 8px; font-size: 14px; }
+  details.how pre {
+    margin: 0 0 8px; padding: 10px; background: var(--umber); color: var(--plaster); border-radius: 4px;
+    font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; overflow: auto;
+  }
+  details.how .note { color: var(--ink-2); font-size: 13px; margin: 0; }
+
+  /* ── The machine ─────────────────────────────────────────────────────────── */
+  .board { display: none; counter-reset: flips; width: min(88vw, 56vh, 480px); }
+  .board > input:checked { counter-increment: flips; }
+  .stage {
+    --plate: var(--persimmon);
+    position: relative; aspect-ratio: 1; padding: 6%;
+    background: var(--plate); border: 3px solid var(--umber); border-radius: 9%;
+    box-shadow: 10px 10px 0 var(--umber);
+  }
+  .lamps, .plate, .keys { position: absolute; inset: 6%; }
+  /* Lamp colours are worked out by blending. Black backdrop; every patch is the
+     lamp colour in "difference" mode, so one patch = lit, two = dark, three = lit. */
+  .lamps { isolation: isolate; background: #000; }
+  .lamps i { position: absolute; display: block; mix-blend-mode: difference; }
+  .s { width: 33.3334%; height: 33.3334%; background: var(--lamp); }
+  .x { inset: 0; opacity: 0; background-repeat: no-repeat; background-size: 33.3334% 33.3334%; transition: opacity 160ms var(--ease); }
+  /* "lighten" keeps lit lamps as they are and lifts the black ones to dark brown */
+  .lamps .tint { inset: 0; mix-blend-mode: lighten; background: var(--dark); }
+  /* The faceplate: one tile with a round hole, repeated nine times. */
+  .plate {
+    inset: calc(6% - 1px);
+    background:
+      radial-gradient(circle at 37% 35%, rgba(251, 230, 204, 0.6) 0 5.5%, transparent 6%) 0 0 / 33.3334% 33.3334%,
+      radial-gradient(circle closest-side, transparent 0 73%, var(--umber) 73.5% 80%, var(--plate) 80.5%) 0 0 / 33.3334% 33.3334%;
+    pointer-events: none;
+  }
+  .keys { display: grid; grid-template-columns: repeat(3, 1fr); }
+  .keys label { position: relative; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+  .keys label::after {
+    content: ""; position: absolute; inset: 10%; border-radius: 50%;
+    transition: box-shadow 140ms var(--ease), transform 140ms var(--ease);
+  }
+  @media (hover: hover) { .keys label:hover::after { box-shadow: inset 0 0 0 5px rgba(251, 230, 204, 0.55); } }
+  .keys label:active::after { box-shadow: inset 0 0 0 9px rgba(251, 230, 204, 0.8); transform: scale(0.94); }
+
+  .sticker {
+    display: none; position: absolute; right: -14px; top: -18px; margin: 0; padding: 10px 18px; align-items: center;
+    background: var(--mustard); border: 3px solid var(--umber); border-radius: 999px; box-shadow: 5px 5px 0 var(--umber);
+    font-family: var(--display); font-weight: 900; font-variation-settings: "wdth" 130; font-size: clamp(18px, 3vw, 26px);
+    text-transform: uppercase; transform: rotate(8deg); animation: pop 420ms var(--ease) both;
+  }
+  @keyframes pop { from { transform: rotate(-20deg) scale(0.2); } 70% { transform: rotate(12deg) scale(1.12); } to { transform: rotate(8deg) scale(1); } }
+
+  .bar { display: flex; align-items: center; gap: 10px; margin-top: 24px; min-height: 44px; }
+  .bar p { margin: 0; flex: 1 1 auto; font-size: 14.5px; font-weight: 600; color: var(--ink-2); }
+  .bar .going { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 14px; }
+  .bar .name { font-family: var(--display); font-weight: 900; font-variation-settings: "wdth" 125; font-size: 17px; text-transform: uppercase; color: var(--umber); }
+  .bar .count::after { content: counter(flips); font-weight: 800; color: var(--umber); font-variant-numeric: tabular-nums; }
+  .bar .won { display: none; align-items: center; gap: 12px; flex-wrap: wrap; color: var(--umber); }
+  .bar .won b { font-family: var(--display); font-weight: 900; font-variation-settings: "wdth" 125; font-size: 17px; text-transform: uppercase; }
+  .bar .btn { flex: 0 0 auto; }
+
+  @media (max-width: 820px) {
+    body { background: radial-gradient(circle at 0 100%, var(--brick) 0 9vmin, var(--persimmon) 9vmin 18vmin, var(--mustard) 18vmin 27vmin, transparent 27vmin), var(--plaster); }
+    main { grid-template-columns: minmax(0, 1fr); justify-items: center; align-content: start; gap: 14px; padding: 14px 16px 20px; }
+    .intro { display: contents; }
+    .head { width: min(88vw, 480px); }
+    .badge { margin-bottom: 8px; font-size: 12px; padding: 4px 10px; }
+    h1 { margin-bottom: 6px; }
+    .hook { margin: 0; font-size: 14px; line-height: 1.35; }
+    .levels { width: min(88vw, 480px); margin: 0; }
+    .boards { order: 3; }
+    details.how { order: 4; width: min(88vw, 480px); }
+    .board { width: min(88vw, 46vh, 480px); min-width: min(88vw, 270px); }
+    .bar { margin-top: 18px; }
+    .stage { box-shadow: 7px 7px 0 var(--umber); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .sticker { animation: none; }
+    .x, .keys label::after { transition: none; }
+  }
+.x1{background-image:linear-gradient(var(--lamp),var(--lamp)),linear-gradient(var(--lamp),var(--lamp)),linear-gradient(var(--lamp),var(--lamp));background-position:0% 0%,0% 50%,50% 0%}
+.c1:checked~.stage .x1{opacity:1}
+.c1:focus-visible~.stage label:nth-of-type(1)::after{outline:4px solid var(--plaster);outline-offset:-10px}
+.x2{background-image:linear-gradient(var(--lamp),var(--lamp)),linear-gradient(var(--lamp),var(--lamp)),linear-gradient(var(--lamp),var(--lamp)),linear-gradient(var(--lamp),var(--lamp));background-position:50% 0%,50% 50%,0% 0%,100% 0%}
+.c2:checked~.stage .x2{opacity:1}
+.c2:focus-visible~.stage label:nth-of-type(2)::after{outline:4px solid var(--plaster);outline-offset:-10px}
+.x3{background-image:linear-gradient(var(--lamp),var(--lamp)),linear-gradient(var(--lamp),var(--lamp)),linear-gradient(var(--lamp),var(--lamp));background-position:100% 0%,100% 50%,50% 0%}
+.c3:checked~.stage .x3{opacity:1}
+.c3:focus-visible~.stage label:nth-of-type(3)::after{outline:4px solid var(--plaster);outline-offset:-10px}
+.x4{background-image:linear-gradient(var(--lamp),var(--lamp)),linear-gradient(var(--lamp),var(--lamp)),linear-gradient(var(--lamp),var(--lamp)),linear-gradient(var(--lamp),var(--lamp));background-position:0% 50%,0% 0%,0% 100%,50% 50%}
+.c4:checked~.stage .x4{opacity:1}
+.c4:focus-visible~.stage label:nth-of-type(4)::after{outline:4px solid var(--plaster);outline-offset:-10px}
+.x5{background-image:linear-gradient(var(--lamp),var(--lamp)),linear-gradient(var(--lamp),var(--lamp)),linear-gradient(var(--lamp),var(--lamp)),linear-gradient(var(--lamp),var(--lamp)),linear-gradient(var(--lamp),var(--lamp));background-position:50% 50%,50% 0%,50% 100%,0% 50%,100% 50%}
+.c5:checked~.stage .x5{opacity:1}
+.c5:focus-visible~.stage label:nth-of-type(5)::after{outline:4px solid var(--plaster);outline-offset:-10px}
+.x6{background-image:linear-gradient(var(--lamp),var(--lamp)),linear-gradient(var(--lamp),var(--lamp)),linear-gradient(var(--lamp),var(--lamp)),linear-gradient(var(--lamp),var(--lamp));background-position:100% 50%,100% 0%,100% 100%,50% 50%}
+.c6:checked~.stage .x6{opacity:1}
+.c6:focus-visible~.stage label:nth-of-type(6)::after{outline:4px solid var(--plaster);outline-offset:-10px}
+.x7{background-image:linear-gradient(var(--lamp),var(--lamp)),linear-gradient(var(--lamp),var(--lamp)),linear-gradient(var(--lamp),var(--lamp));background-position:0% 100%,0% 50%,50% 100%}
+.c7:checked~.stage .x7{opacity:1}
+.c7:focus-visible~.stage label:nth-of-type(7)::after{outline:4px solid var(--plaster);outline-offset:-10px}
+.x8{background-image:linear-gradient(var(--lamp),var(--lamp)),linear-gradient(var(--lamp),var(--lamp)),linear-gradient(var(--lamp),var(--lamp)),linear-gradient(var(--lamp),var(--lamp));background-position:50% 100%,50% 50%,0% 100%,100% 100%}
+.c8:checked~.stage .x8{opacity:1}
+.c8:focus-visible~.stage label:nth-of-type(8)::after{outline:4px solid var(--plaster);outline-offset:-10px}
+.x9{background-image:linear-gradient(var(--lamp),var(--lamp)),linear-gradient(var(--lamp),var(--lamp)),linear-gradient(var(--lamp),var(--lamp));background-position:100% 100%,100% 50%,50% 100%}
+.c9:checked~.stage .x9{opacity:1}
+.c9:focus-visible~.stage label:nth-of-type(9)::after{outline:4px solid var(--plaster);outline-offset:-10px}
+#l1:checked~main .b1{display:block}
+#l1:checked~main label[for=l1]{background:var(--umber);color:var(--plaster)}
+#l1:focus-visible~main label[for=l1]{outline:3px solid var(--umber);outline-offset:2px}
+.b1>.c1:not(:checked)~.c2:not(:checked)~.c3:not(:checked)~.c4:not(:checked)~.c5:checked~.c6:not(:checked)~.c7:not(:checked)~.c8:not(:checked)~.c9:not(:checked)~.stage{--plate:var(--teal)}
+.b1>.c1:not(:checked)~.c2:not(:checked)~.c3:not(:checked)~.c4:not(:checked)~.c5:checked~.c6:not(:checked)~.c7:not(:checked)~.c8:not(:checked)~.c9:not(:checked)~.stage .sticker,.b1>.c1:not(:checked)~.c2:not(:checked)~.c3:not(:checked)~.c4:not(:checked)~.c5:checked~.c6:not(:checked)~.c7:not(:checked)~.c8:not(:checked)~.c9:not(:checked)~.bar .won{display:flex}
+.b1>.c1:not(:checked)~.c2:not(:checked)~.c3:not(:checked)~.c4:not(:checked)~.c5:checked~.c6:not(:checked)~.c7:not(:checked)~.c8:not(:checked)~.c9:not(:checked)~.bar .going{display:none}
+.b1>.c1:not(:checked)~.c2:not(:checked)~.c3:not(:checked)~.c4:not(:checked)~.c5:checked~.c6:not(:checked)~.c7:not(:checked)~.c8:not(:checked)~.c9:not(:checked)~.stage label{pointer-events:none}
+body:has(.b1>.c1:not(:checked)~.c2:not(:checked)~.c3:not(:checked)~.c4:not(:checked)~.c5:checked~.c6:not(:checked)~.c7:not(:checked)~.c8:not(:checked)~.c9:not(:checked)) label[for=l1]{box-shadow:inset 0 -6px 0 var(--mustard)}
+#l2:checked~main .b2{display:block}
+#l2:checked~main label[for=l2]{background:var(--umber);color:var(--plaster)}
+#l2:focus-visible~main label[for=l2]{outline:3px solid var(--umber);outline-offset:2px}
+.b2>.c1:checked~.c2:not(:checked)~.c3:not(:checked)~.c4:not(:checked)~.c5:not(:checked)~.c6:not(:checked)~.c7:not(:checked)~.c8:not(:checked)~.c9:checked~.stage{--plate:var(--teal)}
+.b2>.c1:checked~.c2:not(:checked)~.c3:not(:checked)~.c4:not(:checked)~.c5:not(:checked)~.c6:not(:checked)~.c7:not(:checked)~.c8:not(:checked)~.c9:checked~.stage .sticker,.b2>.c1:checked~.c2:not(:checked)~.c3:not(:checked)~.c4:not(:checked)~.c5:not(:checked)~.c6:not(:checked)~.c7:not(:checked)~.c8:not(:checked)~.c9:checked~.bar .won{display:flex}
+.b2>.c1:checked~.c2:not(:checked)~.c3:not(:checked)~.c4:not(:checked)~.c5:not(:checked)~.c6:not(:checked)~.c7:not(:checked)~.c8:not(:checked)~.c9:checked~.bar .going{display:none}
+.b2>.c1:checked~.c2:not(:checked)~.c3:not(:checked)~.c4:not(:checked)~.c5:not(:checked)~.c6:not(:checked)~.c7:not(:checked)~.c8:not(:checked)~.c9:checked~.stage label{pointer-events:none}
+body:has(.b2>.c1:checked~.c2:not(:checked)~.c3:not(:checked)~.c4:not(:checked)~.c5:not(:checked)~.c6:not(:checked)~.c7:not(:checked)~.c8:not(:checked)~.c9:checked) label[for=l2]{box-shadow:inset 0 -6px 0 var(--mustard)}
+#l3:checked~main .b3{display:block}
+#l3:checked~main label[for=l3]{background:var(--umber);color:var(--plaster)}
+#l3:focus-visible~main label[for=l3]{outline:3px solid var(--umber);outline-offset:2px}
+.b3>.c1:not(:checked)~.c2:checked~.c3:not(:checked)~.c4:checked~.c5:not(:checked)~.c6:checked~.c7:not(:checked)~.c8:checked~.c9:not(:checked)~.stage{--plate:var(--teal)}
+.b3>.c1:not(:checked)~.c2:checked~.c3:not(:checked)~.c4:checked~.c5:not(:checked)~.c6:checked~.c7:not(:checked)~.c8:checked~.c9:not(:checked)~.stage .sticker,.b3>.c1:not(:checked)~.c2:checked~.c3:not(:checked)~.c4:checked~.c5:not(:checked)~.c6:checked~.c7:not(:checked)~.c8:checked~.c9:not(:checked)~.bar .won{display:flex}
+.b3>.c1:not(:checked)~.c2:checked~.c3:not(:checked)~.c4:checked~.c5:not(:checked)~.c6:checked~.c7:not(:checked)~.c8:checked~.c9:not(:checked)~.bar .going{display:none}
+.b3>.c1:not(:checked)~.c2:checked~.c3:not(:checked)~.c4:checked~.c5:not(:checked)~.c6:checked~.c7:not(:checked)~.c8:checked~.c9:not(:checked)~.stage label{pointer-events:none}
+body:has(.b3>.c1:not(:checked)~.c2:checked~.c3:not(:checked)~.c4:checked~.c5:not(:checked)~.c6:checked~.c7:not(:checked)~.c8:checked~.c9:not(:checked)) label[for=l3]{box-shadow:inset 0 -6px 0 var(--mustard)}
+#l4:checked~main .b4{display:block}
+#l4:checked~main label[for=l4]{background:var(--umber);color:var(--plaster)}
+#l4:focus-visible~main label[for=l4]{outline:3px solid var(--umber);outline-offset:2px}
+.b4>.c1:checked~.c2:not(:checked)~.c3:checked~.c4:not(:checked)~.c5:checked~.c6:not(:checked)~.c7:checked~.c8:not(:checked)~.c9:checked~.stage{--plate:var(--teal)}
+.b4>.c1:checked~.c2:not(:checked)~.c3:checked~.c4:not(:checked)~.c5:checked~.c6:not(:checked)~.c7:checked~.c8:not(:checked)~.c9:checked~.stage .sticker,.b4>.c1:checked~.c2:not(:checked)~.c3:checked~.c4:not(:checked)~.c5:checked~.c6:not(:checked)~.c7:checked~.c8:not(:checked)~.c9:checked~.bar .won{display:flex}
+.b4>.c1:checked~.c2:not(:checked)~.c3:checked~.c4:not(:checked)~.c5:checked~.c6:not(:checked)~.c7:checked~.c8:not(:checked)~.c9:checked~.bar .going{display:none}
+.b4>.c1:checked~.c2:not(:checked)~.c3:checked~.c4:not(:checked)~.c5:checked~.c6:not(:checked)~.c7:checked~.c8:not(:checked)~.c9:checked~.stage label{pointer-events:none}
+body:has(.b4>.c1:checked~.c2:not(:checked)~.c3:checked~.c4:not(:checked)~.c5:checked~.c6:not(:checked)~.c7:checked~.c8:not(:checked)~.c9:checked) label[for=l4]{box-shadow:inset 0 -6px 0 var(--mustard)}
+#l5:checked~main .b5{display:block}
+#l5:checked~main label[for=l5]{background:var(--umber);color:var(--plaster)}
+#l5:focus-visible~main label[for=l5]{outline:3px solid var(--umber);outline-offset:2px}
+.b5>.c1:checked~.c2:checked~.c3:checked~.c4:checked~.c5:not(:checked)~.c6:checked~.c7:not(:checked)~.c8:checked~.c9:not(:checked)~.stage{--plate:var(--teal)}
+.b5>.c1:checked~.c2:checked~.c3:checked~.c4:checked~.c5:not(:checked)~.c6:checked~.c7:not(:checked)~.c8:checked~.c9:not(:checked)~.stage .sticker,.b5>.c1:checked~.c2:checked~.c3:checked~.c4:checked~.c5:not(:checked)~.c6:checked~.c7:not(:checked)~.c8:checked~.c9:not(:checked)~.bar .won{display:flex}
+.b5>.c1:checked~.c2:checked~.c3:checked~.c4:checked~.c5:not(:checked)~.c6:checked~.c7:not(:checked)~.c8:checked~.c9:not(:checked)~.bar .going{display:none}
+.b5>.c1:checked~.c2:checked~.c3:checked~.c4:checked~.c5:not(:checked)~.c6:checked~.c7:not(:checked)~.c8:checked~.c9:not(:checked)~.stage label{pointer-events:none}
+body:has(.b5>.c1:checked~.c2:checked~.c3:checked~.c4:checked~.c5:not(:checked)~.c6:checked~.c7:not(:checked)~.c8:checked~.c9:not(:checked)) label[for=l5]{box-shadow:inset 0 -6px 0 var(--mustard)}
+</style>
+</head>
+<body>
+<input type="radio" name="level" id="l1" class="visually-hidden" aria-label="Level 1: Warm-up" checked><input type="radio" name="level" id="l2" class="visually-hidden" aria-label="Level 2: Corners"><input type="radio" name="level" id="l3" class="visually-hidden" aria-label="Level 3: Compass"><input type="radio" name="level" id="l4" class="visually-hidden" aria-label="Level 4: Blackout"><input type="radio" name="level" id="l5" class="visually-hidden" aria-label="Level 5: Rewire">
+<main>
+  <div class="intro">
+    <div class="head">
+      <p class="badge">JavaScript on this page: 0 bytes</p>
+      <h1>Lights out, <em>script off</em></h1>
+      <p class="hook">A whole puzzle game with no code running. Tap a lamp and it flips, along with the lamps beside it. Get all nine lit.</p>
+    </div>
+    <div class="levels">
+      <span class="label">Level</span>
+      <div class="seg"><label for="l1">1</label><label for="l2">2</label><label for="l3">3</label><label for="l4">4</label><label for="l5">5</label></div>
+    </div>
+    <details class="how">
+      <summary class="btn">How it works</summary>
+      <div class="panel">
+        <p>Each lamp is a label for a hidden checkbox, so tapping it ticks a box. A ticked box reveals a plus-shaped patch of yellow over that lamp and its neighbours.</p>
+        <p>The patches are painted in the <b>difference</b> blend mode, where yellow on yellow makes black. So two patches on one lamp cancel out, which is exactly the flip-flop rule the game needs.</p>
+<pre>.c5:checked ~ .stage .x5 { opacity: 1 }
+.x5 { mix-blend-mode: difference }
+/* winning is one long selector */
+.c1:checked ~ .c2:not(:checked) ~ … ~ .stage
+  .sticker { display: flex }</pre>
+        <p>The win check is a selector that only matches when the right boxes are ticked. The tally is a CSS counter, Reset is a plain form button, the level picker is radio buttons, and this note is a details element.</p>
+        <p class="note">View the page source to check: there is no script tag. It works in any browser from about 2020 on; the yellow underline on finished levels needs the newer :has() selector.</p>
+      </div>
+    </details>
+  </div>
+  <div class="boards">
+  <form class="board b1" aria-label="Level 1: Warm-up">
+    <input type="checkbox" class="c1 visually-hidden" id="b1c1" aria-label="Lamp switch, row 1, column 1"><input type="checkbox" class="c2 visually-hidden" id="b1c2" aria-label="Lamp switch, row 1, column 2"><input type="checkbox" class="c3 visually-hidden" id="b1c3" aria-label="Lamp switch, row 1, column 3"><input type="checkbox" class="c4 visually-hidden" id="b1c4" aria-label="Lamp switch, row 2, column 1"><input type="checkbox" class="c5 visually-hidden" id="b1c5" aria-label="Lamp switch, row 2, column 2"><input type="checkbox" class="c6 visually-hidden" id="b1c6" aria-label="Lamp switch, row 2, column 3"><input type="checkbox" class="c7 visually-hidden" id="b1c7" aria-label="Lamp switch, row 3, column 1"><input type="checkbox" class="c8 visually-hidden" id="b1c8" aria-label="Lamp switch, row 3, column 2"><input type="checkbox" class="c9 visually-hidden" id="b1c9" aria-label="Lamp switch, row 3, column 3">
+    <div class="stage">
+      <div class="lamps"><i class="s" style="left:0.0%;top:0.0%"></i><i class="s" style="left:66.6668%;top:0.0%"></i><i class="s" style="left:0.0%;top:66.6668%"></i><i class="s" style="left:66.6668%;top:66.6668%"></i><i class="x x1"></i><i class="x x2"></i><i class="x x3"></i><i class="x x4"></i><i class="x x5"></i><i class="x x6"></i><i class="x x7"></i><i class="x x8"></i><i class="x x9"></i><i class="tint"></i></div>
+      <div class="plate"></div>
+      <div class="keys"><label for="b1c1"></label><label for="b1c2"></label><label for="b1c3"></label><label for="b1c4"></label><label for="b1c5"></label><label for="b1c6"></label><label for="b1c7"></label><label for="b1c8"></label><label for="b1c9"></label></div>
+      <p class="sticker" aria-hidden="true">All lit!</p>
+    </div>
+    <div class="bar">
+      <p class="going"><b class="name">1. Warm-up</b><span class="count">Switches on: </span><span class="par">Solvable in 1</span></p>
+      <p class="won" role="status"><b>Solved.</b><label class="btn solid" for="l2">Next level</label></p>
+      <button type="reset" class="btn">Reset</button>
+    </div>
+  </form>
+  <form class="board b2" aria-label="Level 2: Corners">
+    <input type="checkbox" class="c1 visually-hidden" id="b2c1" aria-label="Lamp switch, row 1, column 1"><input type="checkbox" class="c2 visually-hidden" id="b2c2" aria-label="Lamp switch, row 1, column 2"><input type="checkbox" class="c3 visually-hidden" id="b2c3" aria-label="Lamp switch, row 1, column 3"><input type="checkbox" class="c4 visually-hidden" id="b2c4" aria-label="Lamp switch, row 2, column 1"><input type="checkbox" class="c5 visually-hidden" id="b2c5" aria-label="Lamp switch, row 2, column 2"><input type="checkbox" class="c6 visually-hidden" id="b2c6" aria-label="Lamp switch, row 2, column 3"><input type="checkbox" class="c7 visually-hidden" id="b2c7" aria-label="Lamp switch, row 3, column 1"><input type="checkbox" class="c8 visually-hidden" id="b2c8" aria-label="Lamp switch, row 3, column 2"><input type="checkbox" class="c9 visually-hidden" id="b2c9" aria-label="Lamp switch, row 3, column 3">
+    <div class="stage">
+      <div class="lamps"><i class="s" style="left:66.6668%;top:0.0%"></i><i class="s" style="left:33.3334%;top:33.3334%"></i><i class="s" style="left:0.0%;top:66.6668%"></i><i class="x x1"></i><i class="x x2"></i><i class="x x3"></i><i class="x x4"></i><i class="x x5"></i><i class="x x6"></i><i class="x x7"></i><i class="x x8"></i><i class="x x9"></i><i class="tint"></i></div>
+      <div class="plate"></div>
+      <div class="keys"><label for="b2c1"></label><label for="b2c2"></label><label for="b2c3"></label><label for="b2c4"></label><label for="b2c5"></label><label for="b2c6"></label><label for="b2c7"></label><label for="b2c8"></label><label for="b2c9"></label></div>
+      <p class="sticker" aria-hidden="true">All lit!</p>
+    </div>
+    <div class="bar">
+      <p class="going"><b class="name">2. Corners</b><span class="count">Switches on: </span><span class="par">Solvable in 2</span></p>
+      <p class="won" role="status"><b>Solved.</b><label class="btn solid" for="l3">Next level</label></p>
+      <button type="reset" class="btn">Reset</button>
+    </div>
+  </form>
+  <form class="board b3" aria-label="Level 3: Compass">
+    <input type="checkbox" class="c1 visually-hidden" id="b3c1" aria-label="Lamp switch, row 1, column 1"><input type="checkbox" class="c2 visually-hidden" id="b3c2" aria-label="Lamp switch, row 1, column 2"><input type="checkbox" class="c3 visually-hidden" id="b3c3" aria-label="Lamp switch, row 1, column 3"><input type="checkbox" class="c4 visually-hidden" id="b3c4" aria-label="Lamp switch, row 2, column 1"><input type="checkbox" class="c5 visually-hidden" id="b3c5" aria-label="Lamp switch, row 2, column 2"><input type="checkbox" class="c6 visually-hidden" id="b3c6" aria-label="Lamp switch, row 2, column 3"><input type="checkbox" class="c7 visually-hidden" id="b3c7" aria-label="Lamp switch, row 3, column 1"><input type="checkbox" class="c8 visually-hidden" id="b3c8" aria-label="Lamp switch, row 3, column 2"><input type="checkbox" class="c9 visually-hidden" id="b3c9" aria-label="Lamp switch, row 3, column 3">
+    <div class="stage">
+      <div class="lamps"><i class="s" style="left:0.0%;top:0.0%"></i><i class="s" style="left:66.6668%;top:0.0%"></i><i class="s" style="left:33.3334%;top:33.3334%"></i><i class="s" style="left:0.0%;top:66.6668%"></i><i class="s" style="left:66.6668%;top:66.6668%"></i><i class="x x1"></i><i class="x x2"></i><i class="x x3"></i><i class="x x4"></i><i class="x x5"></i><i class="x x6"></i><i class="x x7"></i><i class="x x8"></i><i class="x x9"></i><i class="tint"></i></div>
+      <div class="plate"></div>
+      <div class="keys"><label for="b3c1"></label><label for="b3c2"></label><label for="b3c3"></label><label for="b3c4"></label><label for="b3c5"></label><label for="b3c6"></label><label for="b3c7"></label><label for="b3c8"></label><label for="b3c9"></label></div>
+      <p class="sticker" aria-hidden="true">All lit!</p>
+    </div>
+    <div class="bar">
+      <p class="going"><b class="name">3. Compass</b><span class="count">Switches on: </span><span class="par">Solvable in 4</span></p>
+      <p class="won" role="status"><b>Solved.</b><label class="btn solid" for="l4">Next level</label></p>
+      <button type="reset" class="btn">Reset</button>
+    </div>
+  </form>
+  <form class="board b4" aria-label="Level 4: Blackout">
+    <input type="checkbox" class="c1 visually-hidden" id="b4c1" aria-label="Lamp switch, row 1, column 1"><input type="checkbox" class="c2 visually-hidden" id="b4c2" aria-label="Lamp switch, row 1, column 2"><input type="checkbox" class="c3 visually-hidden" id="b4c3" aria-label="Lamp switch, row 1, column 3"><input type="checkbox" class="c4 visually-hidden" id="b4c4" aria-label="Lamp switch, row 2, column 1"><input type="checkbox" class="c5 visually-hidden" id="b4c5" aria-label="Lamp switch, row 2, column 2"><input type="checkbox" class="c6 visually-hidden" id="b4c6" aria-label="Lamp switch, row 2, column 3"><input type="checkbox" class="c7 visually-hidden" id="b4c7" aria-label="Lamp switch, row 3, column 1"><input type="checkbox" class="c8 visually-hidden" id="b4c8" aria-label="Lamp switch, row 3, column 2"><input type="checkbox" class="c9 visually-hidden" id="b4c9" aria-label="Lamp switch, row 3, column 3">
+    <div class="stage">
+      <div class="lamps"><i class="x x1"></i><i class="x x2"></i><i class="x x3"></i><i class="x x4"></i><i class="x x5"></i><i class="x x6"></i><i class="x x7"></i><i class="x x8"></i><i class="x x9"></i><i class="tint"></i></div>
+      <div class="plate"></div>
+      <div class="keys"><label for="b4c1"></label><label for="b4c2"></label><label for="b4c3"></label><label for="b4c4"></label><label for="b4c5"></label><label for="b4c6"></label><label for="b4c7"></label><label for="b4c8"></label><label for="b4c9"></label></div>
+      <p class="sticker" aria-hidden="true">All lit!</p>
+    </div>
+    <div class="bar">
+      <p class="going"><b class="name">4. Blackout</b><span class="count">Switches on: </span><span class="par">Solvable in 5</span></p>
+      <p class="won" role="status"><b>Solved.</b><label class="btn solid" for="l5">Next level</label></p>
+      <button type="reset" class="btn">Reset</button>
+    </div>
+  </form>
+  <form class="board b5" aria-label="Level 5: Rewire">
+    <input type="checkbox" class="c1 visually-hidden" id="b5c1" aria-label="Lamp switch, row 1, column 1"><input type="checkbox" class="c2 visually-hidden" id="b5c2" aria-label="Lamp switch, row 1, column 2"><input type="checkbox" class="c3 visually-hidden" id="b5c3" aria-label="Lamp switch, row 1, column 3"><input type="checkbox" class="c4 visually-hidden" id="b5c4" aria-label="Lamp switch, row 2, column 1"><input type="checkbox" class="c5 visually-hidden" id="b5c5" aria-label="Lamp switch, row 2, column 2"><input type="checkbox" class="c6 visually-hidden" id="b5c6" aria-label="Lamp switch, row 2, column 3"><input type="checkbox" class="c7 visually-hidden" id="b5c7" aria-label="Lamp switch, row 3, column 1"><input type="checkbox" class="c8 visually-hidden" id="b5c8" aria-label="Lamp switch, row 3, column 2"><input type="checkbox" class="c9 visually-hidden" id="b5c9" aria-label="Lamp switch, row 3, column 3">
+    <div class="stage">
+      <div class="lamps"><i class="s" style="left:0.0%;top:33.3334%"></i><i class="s" style="left:33.3334%;top:33.3334%"></i><i class="s" style="left:66.6668%;top:33.3334%"></i><i class="s" style="left:0.0%;top:66.6668%"></i><i class="s" style="left:66.6668%;top:66.6668%"></i><i class="x x1"></i><i class="x x2"></i><i class="x x3"></i><i class="x x4"></i><i class="x x5"></i><i class="x x6"></i><i class="x x7"></i><i class="x x8"></i><i class="x x9"></i><i class="tint"></i></div>
+      <div class="plate"></div>
+      <div class="keys"><label for="b5c1"></label><label for="b5c2"></label><label for="b5c3"></label><label for="b5c4"></label><label for="b5c5"></label><label for="b5c6"></label><label for="b5c7"></label><label for="b5c8"></label><label for="b5c9"></label></div>
+      <p class="sticker" aria-hidden="true">All lit!</p>
+    </div>
+    <div class="bar">
+      <p class="going"><b class="name">5. Rewire</b><span class="count">Switches on: </span><span class="par">Solvable in 6</span></p>
+      <p class="won" role="status"><b>Last one solved. You beat a stylesheet.</b><label class="btn solid" for="l1">Back to level 1</label></p>
+      <button type="reset" class="btn">Reset</button>
+    </div>
+  </form>
+  </div>
+</main>
+</body>
+</html>

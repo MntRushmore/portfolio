@@ -1,0 +1,961 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Say the Room</title>
+<link rel="stylesheet" href="../kit.css">
+<style>
+  :root {
+    --mustard: #f4c04e; --teal: #1f6b70; --avocado: #7a8743; --plum: #7b2d5b; --cream: #fbe6cc; --wood: #9a5a2a;
+    --spring: cubic-bezier(.3, 1.5, .5, 1);
+    --beat: 0.6s;
+  }
+  html, body { overflow: hidden; overscroll-behavior: none; }
+  body { position: fixed; inset: 0; background: #f3d2ab; }
+
+  #room { position: absolute; inset: 0; width: 100%; height: 100%; display: block; user-select: none; -webkit-user-select: none; }
+  .k { stroke: var(--umber); stroke-width: 2.25px; vector-effect: non-scaling-stroke; stroke-linejoin: round; stroke-linecap: round; }
+  .kt { stroke: var(--umber); stroke-width: 1.5px; vector-effect: non-scaling-stroke; stroke-linecap: round; fill: none; }
+
+  /* Things are placed by .pos (set from the layout table) and popped by .pop. */
+  .pos { transition: transform 520ms var(--spring); }
+  .pop { transform-origin: 0 0; transform: scale(0.3, 0); opacity: 0; transition: transform 200ms cubic-bezier(.5, 0, .9, .4), opacity 160ms linear 40ms; }
+  .obj.on > .pop { transform: none; opacity: 1; animation: popIn 560ms var(--spring) both; }
+  @keyframes popIn { 0% { transform: scale(.3, 0); opacity: 0; } 30% { opacity: 1; } 100% { transform: none; opacity: 1; } }
+  .drop > .pop { transform: translateY(-520px); }
+  .drop.on > .pop { animation: dropIn 760ms cubic-bezier(.3, 1.3, .5, 1) both; }
+  @keyframes dropIn { 0% { transform: translateY(-520px); opacity: 1; } 100% { transform: none; opacity: 1; } }
+
+  .fade { opacity: 0; transition: opacity 500ms var(--ease); }
+  .fade.on { opacity: 1; }
+
+  /* Wall graphics draw themselves along their paths. */
+  .gfx .dash { stroke-dasharray: 1 1; stroke-dashoffset: 1; transition: stroke-dashoffset 260ms ease-in; fill: none; }
+  .gfx.on .dash { stroke-dashoffset: 0; transition: stroke-dashoffset 900ms cubic-bezier(.3, .7, .2, 1) var(--d, 0ms); }
+  .gfx .grow { transform: scale(0); transition: transform 240ms ease-in; }
+  .gfx.on .grow { transform: none; transition: transform 700ms var(--spring) var(--d, 0ms); }
+  #wallWipe { transform-origin: 0 300px; transform: scale(0); }
+  #wallWipe.go { transform: scale(420); transition: transform 620ms cubic-bezier(.4, 0, .3, 1); }
+
+  /* Always-on life. */
+  .leaf { transform-origin: 0 0; transform: scale(0); transition: transform 200ms ease-in; }
+  .on .leaf { transform: none; transition: transform 620ms var(--spring) var(--d, 0ms); }
+  .sway { transform-origin: 0 0; animation: sway 5.5s ease-in-out infinite alternate; }
+  @keyframes sway { from { transform: rotate(-1.6deg); } to { transform: rotate(1.6deg); } }
+  .tail { transform-origin: 24px -8px; animation: tail 2.8s ease-in-out infinite alternate; }
+  @keyframes tail { from { transform: rotate(-10deg); } to { transform: rotate(16deg); } }
+  .wag { transform-origin: 82px -52px; animation: wag calc(var(--beat) * .5) ease-in-out infinite alternate; }
+  @keyframes wag { from { transform: rotate(-16deg); } to { transform: rotate(18deg); } }
+  .flame { transform-origin: 0 0; animation: flame 420ms ease-in-out infinite alternate; }
+  .flame.b { animation-duration: 530ms; animation-delay: -200ms; }
+  .flame.c { animation-duration: 350ms; animation-delay: -90ms; }
+  @keyframes flame { from { transform: scale(.86, .78) skewX(-5deg); } to { transform: scale(1.06, 1.14) skewX(5deg); } }
+  .flick { animation: flick 1.3s steps(7) infinite; }
+  @keyframes flick { 0% { opacity: .78; } 25% { opacity: 1; } 45% { opacity: .7; } 70% { opacity: .95; } 100% { opacity: .82; } }
+  .blob { animation: blob 7s ease-in-out infinite alternate; }
+  .blob.b { animation-duration: 9s; animation-delay: -4s; }
+  .blob.c { animation-duration: 5.5s; animation-delay: -2s; }
+  @keyframes blob { from { transform: translateY(0) scale(1, 1); } 50% { transform: translateY(-52px) scale(.8, 1.3); } to { transform: translateY(-104px) scale(1.05, .9); } }
+  .rain { animation: rain 520ms linear infinite; }
+  @keyframes rain { to { transform: translate(-40px, 120px); } }
+  .snow { animation: snow 3.4s linear infinite; }
+  @keyframes snow { to { transform: translate(0, 120px); } }
+  .cloud { animation: cloud 46s linear infinite; }
+  .cloud.b { animation-duration: 70s; animation-delay: -30s; }
+  @keyframes cloud { from { transform: translateX(-260px); } to { transform: translateX(260px); } }
+  .twinkle { animation: twinkle 2.4s ease-in-out infinite alternate; }
+  .twinkle:nth-child(odd) { animation-delay: -1.3s; animation-duration: 3.1s; }
+  @keyframes twinkle { from { opacity: .25; } to { opacity: 1; } }
+  .tvbars { animation: tvbars 3s steps(1) infinite; }
+  @keyframes tvbars { 0%, 100% { transform: none; } 47% { transform: translateY(3px) skewX(-2deg); } 50% { transform: none; } 81% { transform: translateX(-2px); } 83% { transform: none; } }
+  .zz { opacity: 0; }
+  .asleep .zz { animation: zz 3.2s ease-in infinite; }
+  .asleep .zz.b { animation-delay: 1.1s; }
+  .asleep .zz.c { animation-delay: 2.1s; }
+  @keyframes zz { 0% { opacity: 0; transform: translate(0, 0) scale(.6); } 20% { opacity: 1; } 100% { opacity: 0; transform: translate(26px, -62px) scale(1.25); } }
+  .eyes-shut { display: none; }
+  .asleep .eyes-shut { display: inline; }
+  .asleep .eyes-open { display: none; }
+  .blink .eyes-open { transform: scaleY(.1); }
+  .eyes-open { transform-origin: 0 -2px; transition: transform 70ms linear; }
+  .ear { transition: transform 160ms var(--spring); transform-origin: 0 -12px; }
+  .perk .ear.l { transform: rotate(-12deg) scaleY(1.14); }
+  .perk .ear.r { transform: rotate(12deg) scaleY(1.14); }
+  .pupil { transition: transform 180ms var(--ease); }
+
+  /* Music: the record turns, notes drift up and the room bops on the beat. */
+  .spin { transform-origin: 0 0; }
+  .music .spin { animation: spin 1.8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .arm { transform-origin: 44px -152px; transform: rotate(-24deg); transition: transform 600ms var(--ease); }
+  .music .arm { transform: none; }
+  .note { opacity: 0; }
+  .music .note { animation: note calc(var(--beat) * 4) ease-out infinite; }
+  .music .note.b { animation-delay: calc(var(--beat) * -1.3); }
+  .music .note.c { animation-delay: calc(var(--beat) * -2.6); }
+  .music .note.d { animation-delay: calc(var(--beat) * -3.4); display: none; }
+  .music.g1 .note.d, .music.g2 .note.d { display: inline; }
+  @keyframes note { 0% { opacity: 0; transform: translate(0, 0) rotate(-8deg) scale(.5); } 15% { opacity: 1; } 100% { opacity: 0; transform: translate(var(--nx, 40px), -190px) rotate(14deg) scale(1.15); } }
+  .bop { transform-origin: 0 0; }
+  .music.g1 .bop, .music.g2 .bop { animation: bop var(--beat) cubic-bezier(.3, 0, .4, 1) infinite; }
+  @keyframes bop { 0%, 100% { transform: scale(1, 1); } 18% { transform: scale(1.025, .955); } 55% { transform: scale(.99, 1.02); } }
+  .music.g2 .bop { animation-name: bop2; }
+  @keyframes bop2 { 0%, 100% { transform: scale(1, 1) translateY(0); } 18% { transform: scale(1.05, .92); } 55% { transform: scale(.97, 1.05) translateY(-9px); } }
+  .ballspin { animation: ballspin calc(var(--beat) * 6) linear infinite; }
+  @keyframes ballspin { to { transform: translateX(-52px); } }
+  .spots { opacity: 0; transition: opacity 600ms; }
+  .spots.on { opacity: 1; }
+  .spots .row { animation: spots calc(var(--beat) * 14) linear infinite; }
+  .spots .row.b { animation-direction: reverse; animation-duration: calc(var(--beat) * 19); }
+  @keyframes spots { to { transform: translateX(400px); } }
+  .spots ellipse { fill: #fff6dc; opacity: .34; }
+  .party .spots ellipse:nth-child(3n) { fill: #ffd34f; }
+  .party .spots ellipse:nth-child(3n+1) { fill: #ff8a52; }
+  .party .spots ellipse:nth-child(3n+2) { fill: #7fe0d6; }
+  .flag { transform-origin: var(--fx) var(--fy); transform: scale(0); transition: transform 180ms ease-in; }
+  .party .flag { transform: none; transition: transform 500ms var(--spring) var(--d, 0ms); }
+  .bstring { opacity: 0; transition: opacity 300ms; }
+  .party .bstring { opacity: 1; }
+  .confetti { display: none; }
+  .party .confetti { display: inline; }
+  .confetti rect { animation: confetti 4s linear infinite; }
+  @keyframes confetti { from { transform: translateY(-140px) rotate(0deg); } to { transform: translateY(1250px) rotate(540deg); } }
+
+  #shade { transition: opacity 900ms var(--ease); pointer-events: none; }
+  .hole, .glow { opacity: 0; transition: opacity 800ms var(--ease); }
+  .sky, .sun, .moon, .stars, .wx, #tint, .floor { transition: opacity 800ms var(--ease), transform 1100ms var(--ease), fill 800ms; }
+
+  /* ---- Interface ---- */
+  .top { position: absolute; left: 0; right: 0; top: 0; display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; padding: 14px 16px; pointer-events: none; }
+  .brand, .meter { pointer-events: auto; padding: 9px 13px 10px; }
+  .brand h1 { margin: 0; font-family: var(--display); font-weight: 900; font-variation-settings: "wdth" 135; font-size: 22px; line-height: 1; letter-spacing: -0.01em; text-transform: uppercase; white-space: nowrap; }
+  .brand p { margin: 5px 0 0; font-size: 13px; font-weight: 600; color: var(--ink-2); line-height: 1.25; max-width: 30ch; }
+  .meter { min-width: 148px; text-align: right; }
+  .meter .big { display: flex; justify-content: flex-end; align-items: baseline; gap: 4px; font-family: var(--display); font-weight: 900; font-variation-settings: "wdth" 120; font-size: 30px; line-height: 1; font-variant-numeric: tabular-nums; }
+  .meter .big small { font-size: 13px; font-weight: 800; }
+  .meter .sub { margin-top: 3px; font-size: 12px; font-weight: 700; color: var(--ink-2); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .spark { display: flex; justify-content: flex-end; align-items: flex-end; gap: 2px; height: 14px; margin-top: 5px; }
+  .spark i { width: 4px; background: var(--persimmon); border-radius: 1px; min-height: 2px; }
+
+  .hint { position: absolute; left: 50%; bottom: calc(var(--dockh, 190px) + 34px); transform: translate(-50%, 0); width: min(92%, 640px); margin: 0; text-align: center; pointer-events: none;
+    font-family: var(--display); font-weight: 900; font-variation-settings: "wdth" 130; font-size: clamp(22px, 3.6vw, 40px); line-height: 1.02; text-transform: uppercase; color: var(--umber); opacity: .82;
+    transition: opacity 300ms, transform 400ms var(--ease); }
+  .hint small { display: block; margin-top: 10px; font-family: var(--sans); font-size: clamp(13px, 1.5vw, 16px); font-weight: 700; text-transform: none; letter-spacing: 0; color: var(--ink-2); }
+  .started .hint { opacity: 0; transform: translate(-50%, 30px); }
+
+  .dock { position: absolute; left: 50%; bottom: max(14px, env(safe-area-inset-bottom)); transform: translateX(-50%); width: min(860px, calc(100% - 24px)); padding: 10px 12px 10px; display: grid; gap: 8px; }
+  .hears { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; min-height: 28px; align-items: center; margin: 0 -2px; padding: 0 2px; }
+  .hears::-webkit-scrollbar, .tries::-webkit-scrollbar { display: none; }
+  .hears .label { flex: none; margin-right: 2px; }
+  .hears .none { font-size: 13px; font-weight: 600; color: var(--ink-2); white-space: nowrap; }
+  .chip { flex: none; display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 9px; border: 2px solid var(--umber); border-radius: 999px; background: #fff7ea; font-size: 12.5px; font-weight: 800; white-space: nowrap; animation: chipIn 320ms var(--spring) both; }
+  .chip b { font-weight: 800; color: var(--ink-2); font-variant-numeric: tabular-nums; font-size: 11px; }
+  .chip i { width: 10px; height: 10px; border-radius: 50%; border: 1.5px solid var(--umber); }
+  .chip.out { animation: chipOut 380ms ease-in both; text-decoration: line-through; background: var(--plaster-2); }
+  @keyframes chipIn { from { transform: scale(.4); opacity: 0; } }
+  @keyframes chipOut { 60% { opacity: 1; transform: none; } to { opacity: 0; transform: scale(.6); } }
+
+  .talk { display: flex; gap: 8px; align-items: stretch; }
+  .mic { flex: none; position: relative; display: inline-flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; width: 68px; border: 2px solid var(--umber); border-radius: 16px; background: var(--persimmon); cursor: pointer; font-weight: 800; font-size: 12.5px; line-height: 1; box-shadow: 3px 3px 0 var(--umber); transition: transform 120ms var(--ease), box-shadow 120ms var(--ease), background-color 140ms; }
+  .mic:hover { background: #ff7a42; }
+  .mic:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 var(--umber); }
+  .mic svg { width: 24px; height: 24px; }
+  .mic[aria-pressed="true"] { background: var(--brick); color: var(--plaster); }
+  .mic[aria-pressed="true"]::after { content: ""; position: absolute; inset: -6px; border: 2px solid var(--brick); border-radius: 20px; animation: ring 1.2s ease-out infinite; pointer-events: none; }
+  @keyframes ring { from { opacity: .9; transform: scale(.92); } to { opacity: 0; transform: scale(1.12); } }
+  #say { flex: 1 1 auto; min-width: 0; height: 64px; resize: none; padding: 9px 12px; border: 2px solid var(--umber); border-radius: 14px; background: #fff7ea; font-family: var(--sans); font-size: 18px; font-weight: 700; line-height: 1.25; color: var(--umber); }
+  #say::placeholder { color: #a5825f; font-weight: 600; }
+  #say:focus-visible { outline-offset: 0; box-shadow: none; }
+  .side { flex: none; display: grid; gap: 6px; }
+  .side .btn { min-height: 29px; padding: 0 11px; font-size: 12.5px; }
+  .foot { display: flex; align-items: center; gap: 8px; min-height: 30px; }
+  .tries { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; flex: 1 1 auto; align-items: center; }
+  .tries .btn { flex: none; min-height: 30px; font-size: 13px; padding: 0 11px; }
+  .tries .btn[aria-pressed="true"] { background: var(--mustard); color: var(--umber); }
+  .status { flex: none; max-width: 46%; margin: 0; font-size: 12.5px; font-weight: 700; color: var(--brick); text-align: right; line-height: 1.2; }
+  .status:empty { display: none; }
+
+  @media (max-width: 640px) {
+    .top { padding: 10px; }
+    .brand { padding: 7px 10px 8px; }
+    .brand h1 { font-size: 16px; }
+    .brand p { display: none; }
+    .meter { min-width: 0; padding: 6px 10px 7px; }
+    .meter .big { font-size: 20px; }
+    .meter .label { font-size: 9.5px; }
+    .meter .sub { font-size: 11px; }
+    .spark { display: none; }
+    .dock { bottom: max(8px, env(safe-area-inset-bottom)); width: calc(100% - 16px); padding: 8px; gap: 7px; }
+    .mic { width: 56px; border-radius: 14px; }
+    #say { font-size: 16px; height: 58px; padding: 7px 10px; }
+    .side .btn { padding: 0 9px; }
+    .status { max-width: 40%; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    #room *, .chip, .mic::after { animation: none !important; }
+    .pos, .pop { transition-duration: 0.01ms !important; }
+    .note { display: none !important; }
+  }
+</style>
+</head>
+<body>
+<svg id="room" role="img" aria-label="A 1970s living room that changes as you describe it" preserveAspectRatio="none">
+  <defs>
+    <linearGradient id="skyDay" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7cc7d0"/><stop offset="1" stop-color="#e3f3e2"/></linearGradient>
+    <linearGradient id="skyMorning" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#9fd2d6"/><stop offset=".55" stop-color="#fbd9a6"/><stop offset="1" stop-color="#f7a977"/></linearGradient>
+    <linearGradient id="skySunset" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7b2d5b"/><stop offset=".45" stop-color="#d8442a"/><stop offset=".8" stop-color="#f4903a"/><stop offset="1" stop-color="#f4c04e"/></linearGradient>
+    <linearGradient id="skyNight" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#141a3e"/><stop offset="1" stop-color="#3a3470"/></linearGradient>
+    <radialGradient id="hole"><stop offset="0" stop-color="#000"/><stop offset=".42" stop-color="#000" stop-opacity=".82"/><stop offset="1" stop-color="#000" stop-opacity="0"/></radialGradient>
+    <linearGradient id="cone" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffe9a0" stop-opacity=".62"/><stop offset="1" stop-color="#ffe9a0" stop-opacity="0"/></linearGradient>
+    <radialGradient id="gFire"><stop offset="0" stop-color="#ffb347" stop-opacity=".55"/><stop offset="1" stop-color="#ff7a2a" stop-opacity="0"/></radialGradient>
+    <radialGradient id="gLava"><stop offset="0" stop-color="#ff6aa8" stop-opacity=".55"/><stop offset="1" stop-color="#ff6aa8" stop-opacity="0"/></radialGradient>
+    <radialGradient id="gTv"><stop offset="0" stop-color="#9fe6ea" stop-opacity=".5"/><stop offset="1" stop-color="#9fe6ea" stop-opacity="0"/></radialGradient>
+    <clipPath id="winClip"><rect x="-138" y="-153" width="276" height="306"/></clipPath>
+    <clipPath id="tvClip"><rect x="-80" y="-176" width="120" height="112" rx="20"/></clipPath>
+    <clipPath id="ballClip"><circle cx="0" cy="160" r="52"/></clipPath>
+    <clipPath id="lavaClip"><path d="M -17 -4 L 17 -4 L 11 -120 L -11 -120 Z"/></clipPath>
+    <mask id="lightMask" maskUnits="userSpaceOnUse" x="-4000" y="-4000" width="8000" height="8000">
+      <rect x="-4000" y="-4000" width="8000" height="8000" fill="#fff"/>
+      <g id="holes"></g>
+    </mask>
+  </defs>
+  <g id="wallG"></g>
+  <g id="gfxG"></g>
+  <g id="floorG"></g>
+  <g id="wallThings"></g>
+  <g id="things"></g>
+  <rect id="tint" x="-4000" y="-4000" width="8000" height="8000" fill="#f2662a" opacity="0" style="pointer-events:none"/>
+  <rect id="shade" x="-4000" y="-4000" width="8000" height="8000" fill="#120b2c" opacity="0" mask="url(#lightMask)"/>
+  <g id="glows" style="pointer-events:none"></g>
+</svg>
+
+<p class="hint" id="hint">Say a room into being<small>Press Talk and describe it out loud. It furnishes itself while you are still mid-sentence.</small></p>
+
+<div class="top">
+  <div class="panel brand">
+    <h1>Say the Room</h1>
+    <p>Talk, and Jev rebuilds the room before you finish the sentence.</p>
+  </div>
+  <div class="panel meter" title="Time from a new word arriving to the frame that shows the result">
+    <div class="label">Word → screen</div>
+    <div class="big"><span id="lat">–</span><small>ms</small></div>
+    <div class="sub" id="latSub">Jev warming up</div>
+    <div class="spark" id="spark" aria-hidden="true"></div>
+  </div>
+</div>
+
+<div class="panel dock" id="dock">
+  <div class="hears" id="hears" aria-live="polite"><span class="label">Jev hears</span><span class="none">nothing yet</span></div>
+  <div class="talk">
+    <button class="mic" id="mic" type="button" aria-pressed="false">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3" fill="currentColor"/><path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v3"/></svg>
+      <span id="micLabel">Talk</span>
+    </button>
+    <textarea id="say" rows="2" spellcheck="false" autocomplete="off" autocapitalize="sentences" enterkeyhint="done" aria-label="What you have said so far. You can also type here." placeholder="Or type here: teal walls, a big orange sofa, a cat…"></textarea>
+    <div class="side">
+      <button class="btn" id="reset" type="button">Start over</button>
+      <button class="btn" id="snd" type="button" aria-pressed="true">Sound on</button>
+    </div>
+  </div>
+  <div class="foot">
+    <span class="label">Try</span>
+    <div class="tries" id="tries"></div>
+    <p class="status" id="status" role="status"></p>
+  </div>
+</div>
+
+<script>
+(() => {
+'use strict';
+const $ = (s, r = document) => r.querySelector(s);
+const NS = 'http://www.w3.org/2000/svg';
+const svg = $('#room');
+const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const params = new URLSearchParams(location.search);
+
+/* ---------- paints ---------- */
+const PAINT = { persimmon: '#f2662a', brick: '#b32317', mustard: '#f4c04e', avocado: '#7a8743', teal: '#1f6b70', plum: '#7b2d5b', cream: '#fbe6cc', brown: '#5e351f' };
+const PAINT_NAME = { persimmon: 'orange', brick: 'red', mustard: 'mustard', avocado: 'green', teal: 'teal', plum: 'plum', cream: 'cream', brown: 'brown' };
+const BARE = '#f3d2ab';
+let rs = 7;
+const rnd = () => { rs |= 0; rs = rs + 0x6D2B79F5 | 0; let t = Math.imul(rs ^ rs >>> 15, 1 | rs); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+const el = (html) => { const g = document.createElementNS(NS, 'g'); g.innerHTML = html; return g; };
+
+/* ---------- the wall, its graphics and the floor ---------- */
+$('#wallG').innerHTML = `<rect id="wall" x="-4000" y="-4000" width="8000" height="8000" fill="${BARE}"/><circle id="wallWipe" cx="0" cy="300" r="10" fill="${BARE}"/>`;
+
+const wave = (y0) => { let d = `M -2600 ${y0}`; for (let x = -2600; x < 2600; x += 160) d += ` q 40 -64 80 0 t 80 0`; return d; };
+const rays = () => { let d = ''; for (let i = 0; i < 9; i++) { const a = (-170 + i * 20) * Math.PI / 180, w = 5.2 * Math.PI / 180; const p = (r, t) => `${(300 + r * Math.cos(t)).toFixed(1)} ${(600 + r * Math.sin(t)).toFixed(1)}`; d += `<path d="M ${p(200, a - w)} L ${p(1900, a - w)} L ${p(1900, a + w)} L ${p(200, a + w)} Z" fill="var(--g${i % 2 ? 3 : 2})"/>`; } return d; };
+const arc = (r, i) => `<path class="dash" pathLength="1" style="--d:${i * 90}ms" d="M ${-250 - r} 600 A ${r} ${r} 0 0 1 ${-250 + r} 600" stroke="var(--g${i + 1})" stroke-width="56"/>`;
+const STEP = 'M -2600 440 H 20 Q 100 440 100 360 V 200 Q 100 120 180 120 H 2600';
+$('#gfxG').innerHTML = `
+  <g class="gfx" data-g="stripes">
+    <path class="dash" pathLength="1" d="${STEP}" stroke="var(--g1)" stroke-width="132"/>
+    <path class="dash" pathLength="1" style="--d:70ms" d="${STEP}" stroke="var(--g2)" stroke-width="84"/>
+    <path class="dash" pathLength="1" style="--d:140ms" d="${STEP}" stroke="var(--g3)" stroke-width="36"/>
+  </g>
+  <g class="gfx" data-g="rainbow">${[575, 519, 463, 407].map(arc).join('')}</g>
+  <g class="gfx" data-g="sunburst"><g class="grow" style="transform-origin:300px 600px">${rays()}<circle cx="300" cy="600" r="170" fill="var(--g1)"/><circle cx="300" cy="600" r="110" fill="var(--g2)"/></g></g>
+  <g class="gfx" data-g="waves">
+    <path class="dash" pathLength="1" d="${wave(250)}" stroke="var(--g1)" stroke-width="44"/>
+    <path class="dash" pathLength="1" style="--d:80ms" d="${wave(294)}" stroke="var(--g2)" stroke-width="44"/>
+    <path class="dash" pathLength="1" style="--d:160ms" d="${wave(338)}" stroke="var(--g3)" stroke-width="44"/>
+  </g>
+  <g class="gfx" data-g="circles">
+    <g class="grow" style="transform-origin:-560px 230px"><circle cx="-560" cy="230" r="230" fill="var(--g1)"/><circle cx="-560" cy="230" r="160" fill="var(--g2)"/><circle cx="-560" cy="230" r="90" fill="var(--g3)"/></g>
+    <g class="grow" style="transform-origin:560px 400px;--d:120ms"><circle cx="560" cy="400" r="180" fill="var(--g3)"/><circle cx="560" cy="400" r="118" fill="var(--g1)"/><circle cx="560" cy="400" r="56" fill="var(--g2)"/></g>
+    <g class="grow" style="transform-origin:110px 120px;--d:220ms"><circle cx="110" cy="120" r="74" fill="var(--g2)"/><circle cx="110" cy="120" r="34" fill="var(--g4)"/></g>
+  </g>`;
+
+const rowY = (i) => 24 * i + 5.5 * i * i;
+function floors() {
+  const big = (fill) => `<rect x="-4000" y="0" width="8000" height="4000" fill="${fill}"/>`;
+  let rowsD = ''; for (let i = 1; i < 16; i++) rowsD += `M -4000 ${rowY(i)} H 4000 `;
+  // bare boards
+  let out = `<g class="floor on" data-f="unsaid">${big('#dfb688')}<path d="${rowsD}" class="kt" opacity=".28"/></g>`;
+  // wood: staggered planks that widen toward you
+  let joints = '', bands = '';
+  for (let i = 0; i < 15; i++) {
+    const y0 = rowY(i), y1 = rowY(i + 1), sp = 150 + i * 46, off = (i % 3) * sp / 3;
+    if (i % 2) bands += `M -4000 ${y0} H 4000 V ${y1} H -4000 Z `;
+    for (let x = -3200 + off; x < 3200; x += sp) joints += `M ${x.toFixed(0)} ${y0} V ${y1} `;
+  }
+  out += `<g class="floor" data-f="wood">${big('#a9652f')}<path d="${bands}" fill="#bb7739"/><path d="${rowsD}${joints}" class="kt" opacity=".55"/></g>`;
+  // checker: tiles converge on a vanishing point behind the wall
+  let dark = ''; const VP = 240, cw = 96;
+  for (let i = 0; i < 15; i++) {
+    const y0 = rowY(i), y1 = rowY(i + 1), s0 = (y0 + VP) / VP, s1 = (y1 + VP) / VP;
+    for (let k = -42; k < 42; k++) if ((k + i) & 1) dark += `M ${(k * cw * s0).toFixed(0)} ${y0} L ${((k + 1) * cw * s0).toFixed(0)} ${y0} L ${((k + 1) * cw * s1).toFixed(0)} ${y1} L ${(k * cw * s1).toFixed(0)} ${y1} Z `;
+  }
+  out += `<g class="floor" data-f="checker">${big('#fbe6cc')}<path d="${dark}" fill="var(--tile, #5e351f)"/><path d="${rowsD}" class="kt" opacity=".5"/></g>`;
+  // shag: a field of little tufts
+  let tufts = '';
+  for (let i = 0; i < 900; i++) { const d = rnd(), y = 6 + d * d * 900, x = (rnd() - .5) * 3600, l = 5 + d * 14; tufts += `M ${x.toFixed(0)} ${y.toFixed(0)} l ${((rnd() - .5) * l).toFixed(1)} ${(-l).toFixed(1)} `; }
+  out += `<g class="floor" data-f="shag">${big('var(--shag, #f2662a)')}<path d="${tufts}" stroke="#241006" stroke-width="2.2" stroke-linecap="round" opacity=".28" fill="none"/></g>`;
+  // cork
+  let specks = '';
+  for (let i = 0; i < 700; i++) { const d = rnd(), y = 6 + d * d * 900, x = (rnd() - .5) * 3600; specks += `M ${x.toFixed(0)} ${y.toFixed(0)} h ${(2 + d * 9).toFixed(1)} `; }
+  out += `<g class="floor" data-f="cork">${big('#c99a63')}<path d="${specks}" stroke="#7a4a25" stroke-width="3" stroke-linecap="round" opacity=".5" fill="none"/></g>`;
+  out += `<rect x="-4000" y="-18" width="8000" height="18" fill="#fbe6cc" class="k"/>`;
+  return out;
+}
+$('#floorG').innerHTML = floors();
+document.querySelectorAll('.floor').forEach((f) => { if (!f.classList.contains('on')) f.style.opacity = 0; });
+
+/* ---------- things ---------- */
+const rainLines = () => { let d = ''; for (let i = 0; i < 16; i++) { const x = -170 + rnd() * 360, y = -170 + rnd() * 120; for (let k = -1; k < 4; k++) d += `M ${(x - 40 * k).toFixed(0)} ${(y + 120 * k).toFixed(0)} l -8 24 `; } return d; };
+const snowDots = () => { let d = ''; for (let i = 0; i < 14; i++) { const x = -135 + rnd() * 270, y = -170 + rnd() * 120, r = 2.5 + rnd() * 2.5; for (let k = -1; k < 4; k++) d += `<circle cx="${x.toFixed(0)}" cy="${(y + 120 * k).toFixed(0)}" r="${r.toFixed(1)}"/>`; } return d; };
+const stars = () => { let d = ''; for (let i = 0; i < 16; i++) d += `<circle class="twinkle" cx="${(-125 + rnd() * 250).toFixed(0)}" cy="${(-145 + rnd() * 190).toFixed(0)}" r="${(1.6 + rnd() * 2.2).toFixed(1)}" fill="#fff3d0"/>`; return d; };
+const leaves = () => { const L = [[-52, 112, .78], [-30, 160, .9], [-10, 200, .98], [14, 180, .9], [36, 146, .84], [58, 104, .74], [-74, 70, .64], [78, 66, .62]]; return L.map(([a, len, s], i) => `<g transform="translate(0 -84) rotate(${a})"><g class="leaf" style="--d:${80 + i * 55}ms"><path d="M 0 0 V ${-len}" stroke="#4d5a2a" stroke-width="5" fill="none" class="k"/><g transform="translate(0 ${-len + 20}) scale(${s})"><path d="M 0 0 C 44 -22 50 -86 0 -128 C -50 -86 -44 -22 0 0 Z" fill="${i % 3 === 1 ? '#8c9a4e' : i % 3 === 2 ? '#5f6d33' : '#7a8743'}" class="k"/><path d="M 0 -6 V -112" class="kt" opacity=".5"/></g></g></g>`).join(''); };
+const ballGrid = () => { let d = ''; for (let i = -6; i <= 8; i++) { const x = i * 17.3; d += `M ${x} 104 Q ${x + 9} 160 ${x} 216 `; } for (let j = 1; j < 7; j++) { const y = 108 + j * 15; d += `M -60 ${y} H 120 `; } return d; };
+const sparkles = () => [[-22, 138], [14, 170], [30, 130], [-34, 178], [4, 196], [38, 160]].map(([x, y]) => `<rect class="twinkle" x="${x}" y="${y}" width="11" height="11" fill="#fff"/>`).join('');
+const NOTE = `<g class="k" fill="#fbe6cc"><path d="M 5 -3 V -34 Q 16 -30 18 -18 Q 13 -24 8 -24 V -3 Z"/><ellipse cx="0" cy="0" rx="8" ry="5.5" transform="rotate(-20)"/></g>`;
+
+// [group, key, extra class, markup]. Markup origin: where the thing meets the floor (or its centre, on the wall).
+const THINGS = [
+  ['wall', 'window', '', `
+    <rect x="-152" y="-167" width="304" height="334" rx="4" fill="#fbe6cc" class="k"/>
+    <g clip-path="url(#winClip)">
+      <rect class="sky" data-t="day" x="-138" y="-153" width="276" height="306" fill="url(#skyDay)"/>
+      <rect class="sky" data-t="morning" x="-138" y="-153" width="276" height="306" fill="url(#skyMorning)" opacity="0"/>
+      <rect class="sky" data-t="sunset" x="-138" y="-153" width="276" height="306" fill="url(#skySunset)" opacity="0"/>
+      <rect class="sky" data-t="night" x="-138" y="-153" width="276" height="306" fill="url(#skyNight)" opacity="0"/>
+      <g class="stars" opacity="0">${stars()}</g>
+      <g class="sun" style="transform:translate(62px,-78px)"><circle r="34" fill="#f4c04e" class="k"/></g>
+      <g class="moon" style="transform:translate(60px,240px)"><path d="M 14 -30 A 32 32 0 1 0 30 14 A 25 25 0 1 1 14 -30 Z" fill="#fff3d0" class="k"/></g>
+      <g class="clouds"><g class="cloud"><path d="M -60 -60 h 96 a 15 15 0 0 0 -8 -28 a 24 24 0 0 0 -44 -6 a 18 18 0 0 0 -30 12 a 12 12 0 0 0 -14 22 Z" fill="#fff7ea" class="k"/></g><g class="cloud b"><path d="M -40 -6 h 70 a 11 11 0 0 0 -6 -20 a 18 18 0 0 0 -32 -4 a 13 13 0 0 0 -22 9 a 9 9 0 0 0 -10 15 Z" fill="#fff7ea" class="k"/></g></g>
+      <path d="M -140 110 C -80 50 -20 60 30 96 C 70 60 110 56 140 84 V 160 H -140 Z" fill="#8c9a4e" class="k"/>
+      <path d="M -140 138 C -90 96 -40 104 0 128 C 50 100 100 110 140 124 V 160 H -140 Z" fill="#5f6d33" class="k"/>
+      <g class="wx" data-w="rain" opacity="0"><path class="rain" d="${rainLines()}" stroke="#eaf6f4" stroke-width="2.4" stroke-linecap="round" fill="none"/></g>
+      <g class="wx" data-w="snow" opacity="0"><g class="snow" fill="#fff">${snowDots()}</g></g>
+    </g>
+    <rect x="-138" y="-153" width="276" height="306" fill="none" class="k"/>
+    <rect x="-6" y="-153" width="12" height="306" fill="#fbe6cc" class="k"/>
+    <rect x="-138" y="-6" width="276" height="12" fill="#fbe6cc" class="k"/>
+    <rect x="-170" y="165" width="340" height="18" rx="3" fill="#fbe6cc" class="k"/>`],
+  ['wall', 'art', 'obj', `
+    <rect x="-88" y="-110" width="176" height="220" rx="3" fill="#fbe6cc" class="k"/>
+    <rect x="-70" y="-92" width="140" height="184" fill="#1f6b70" class="k"/>
+    <path d="M -70 92 V 30 A 70 70 0 0 1 70 30 V 92 Z" fill="#f2662a" class="k"/>
+    <path d="M -46 92 V 34 A 46 46 0 0 1 46 34 V 92 Z" fill="#f4c04e" class="k"/>
+    <path d="M -22 92 V 38 A 22 22 0 0 1 22 38 V 92 Z" fill="#b32317" class="k"/>
+    <circle cx="34" cy="-52" r="20" fill="#fbe6cc" class="k"/>`],
+  ['wall', 'bunting', '', (() => {
+    const C = ['#f2662a', '#f4c04e', '#1f6b70', '#fbe6cc', '#b32317', '#7b2d5b']; let d = 'M -1000 0', f = '', i = 0;
+    const yy = (x) => 58 * Math.abs(Math.sin(x * Math.PI / 500));
+    for (let x = -1000; x <= 1000; x += 20) d += ` L ${x} ${yy(x).toFixed(1)}`;
+    for (let x = -960; x <= 960; x += 64, i++) { const y = yy(x) + 1; f += `<path class="flag k" style="--fx:${x}px;--fy:${y.toFixed(0)}px;--d:${i * 22}ms" d="M ${x - 25} ${y.toFixed(1)} L ${x + 25} ${y.toFixed(1)} L ${x} ${(y + 58).toFixed(1)} Z" fill="${C[i % 6]}"/>`; }
+    return `<path class="bstring kt" d="${d}"/>${f}`; })()],
+  ['floor', 'rug', 'obj', `
+    <ellipse rx="340" ry="74" fill="#b32317" class="k"/><ellipse rx="262" ry="55" fill="#f4c04e" class="k"/><ellipse rx="182" ry="37" fill="#fbe6cc" class="k"/><ellipse rx="100" ry="19" fill="#f2662a" class="k"/>`],
+  ['floor', 'fire', 'obj', `
+    <rect x="-17" y="-3000" width="34" height="2712" fill="var(--enamel)" class="k"/>
+    <path d="M -17 -292 L 17 -292 L 86 -152 L -86 -152 Z" fill="var(--enamel)" class="k"/>
+    <path d="M -86 -152 L 86 -152 L 78 -82 L -78 -82 Z" fill="#2a0f08" class="k"/>
+    <g transform="translate(-30 -84)"><path class="flame b" d="M 0 0 C -18 -14 -10 -34 0 -50 C 10 -34 18 -14 0 0 Z" fill="#f2662a"/></g>
+    <g transform="translate(30 -84)"><path class="flame c" d="M 0 0 C -18 -14 -10 -32 0 -46 C 10 -32 18 -14 0 0 Z" fill="#f2662a"/></g>
+    <g transform="translate(0 -84)"><path class="flame" d="M 0 0 C -24 -18 -12 -44 0 -64 C 12 -44 24 -18 0 0 Z" fill="#f4c04e"/></g>
+    <path d="M -90 -84 L 90 -84 L 62 -42 L -62 -42 Z" fill="var(--enamel)" class="k"/>
+    <rect x="-10" y="-42" width="20" height="32" fill="#241006"/>
+    <ellipse cx="0" cy="-8" rx="50" ry="9" fill="#241006"/>`],
+  ['floor', 'plant', 'obj', `
+    <g class="sway">${leaves()}</g>
+    <path d="M -44 -72 L 44 -72 L 33 0 L -33 0 Z" fill="#b32317" class="k"/>
+    <rect x="-50" y="-88" width="100" height="18" rx="4" fill="#d8442a" class="k"/>`],
+  ['floor', 'sofa', 'obj', `
+    <g class="bop">
+    <path d="M -196 -18 l 8 18 h 14 l 4 -18 Z M 196 -18 l -8 18 h -14 l -4 -18 Z" fill="#7a4a25" class="k"/>
+    <rect x="-205" y="-204" width="410" height="150" rx="56" fill="var(--sofa)" class="k"/>
+    <circle cx="-90" cy="-150" r="5" fill="#241006" opacity=".55"/><circle cx="0" cy="-150" r="5" fill="#241006" opacity=".55"/><circle cx="90" cy="-150" r="5" fill="#241006" opacity=".55"/>
+    <rect x="-232" y="-98" width="464" height="82" rx="26" fill="var(--sofa)" class="k"/>
+    <rect x="-166" y="-116" width="166" height="52" rx="20" fill="var(--sofa)" class="k"/><rect x="0" y="-116" width="166" height="52" rx="20" fill="var(--sofa)" class="k"/>
+    <rect x="-166" y="-116" width="332" height="52" rx="20" fill="#fff" opacity=".16"/>
+    <rect x="-234" y="-146" width="70" height="130" rx="30" fill="var(--sofa)" class="k"/><rect x="164" y="-146" width="70" height="130" rx="30" fill="var(--sofa)" class="k"/>
+    <rect x="-234" y="-146" width="70" height="130" rx="30" fill="#241006" opacity=".1"/><rect x="164" y="-146" width="70" height="130" rx="30" fill="#241006" opacity=".1"/>
+    <g transform="translate(-128 -128) rotate(-14)"><rect x="-30" y="-30" width="60" height="60" rx="12" fill="var(--cushion)" class="k"/><circle r="4" fill="#241006" opacity=".5"/></g>
+    </g>`],
+  ['floor', 'lamp', 'obj', `
+    <ellipse cx="0" cy="-8" rx="48" ry="10" fill="#241006"/>
+    <rect x="-4.5" y="-320" width="9" height="312" fill="#f4c04e" class="k"/>
+    <ellipse class="bulb k" cx="0" cy="-300" rx="68" ry="11" fill="#fbe6cc"/>
+    <path d="M -72 -300 C -72 -396 72 -396 72 -300 Z" fill="var(--shadecol, #f2662a)" class="k"/>
+    <path d="M -50 -332 C -44 -362 -22 -374 -6 -376" class="kt" opacity=".45" style="stroke:#fff;stroke-width:4px"/>`],
+  ['floor', 'records', 'obj', `
+    <path d="M -96 -40 l -8 40 h 12 l 10 -40 Z M 96 -40 l 8 40 h -12 l -10 -40 Z" fill="#241006"/>
+    <rect x="-118" y="-124" width="236" height="86" rx="7" fill="#9a5a2a" class="k"/>
+    <rect x="-106" y="-112" width="100" height="62" rx="3" fill="#f4c04e" class="k"/>
+    <path d="M -94 -100 h 76 M -94 -88 h 76 M -94 -76 h 76 M -94 -64 h 76" class="kt" opacity=".5"/>
+    <rect x="6" y="-112" width="100" height="62" rx="3" fill="#5e351f" class="k"/>
+    <path d="M 16 -106 v 50 M 24 -106 v 50" stroke="#f2662a" stroke-width="5"/><path d="M 32 -106 v 50 M 48 -106 v 50" stroke="#fbe6cc" stroke-width="5"/><path d="M 40 -106 v 50 M 64 -106 v 50" stroke="#1f6b70" stroke-width="5"/><path d="M 56 -106 v 50 M 80 -106 v 50" stroke="#f4c04e" stroke-width="5"/><path d="M 72 -106 v 50 M 92 -104 l 6 48" stroke="#b32317" stroke-width="5"/>
+    <rect x="-84" y="-138" width="140" height="15" rx="3" fill="#fbe6cc" class="k"/>
+    <g transform="translate(-22 -142) scale(1 .34)"><g class="spin"><circle r="52" fill="#241006" class="k"/><circle r="40" fill="none" stroke="#5a3a26" stroke-width="1.5"/><circle r="30" fill="none" stroke="#5a3a26" stroke-width="1.5"/><path d="M 0 0 L 50 -12 A 52 52 0 0 1 50 12 Z M 0 0 L -50 12 A 52 52 0 0 1 -50 -12 Z" fill="#fff" opacity=".14"/><circle r="18" fill="#f2662a" class="k"/><path d="M 0 -18 A 18 18 0 0 1 0 18 Z" fill="#f4c04e"/><circle r="3" fill="#241006"/></g></g>
+    <g class="arm"><circle cx="44" cy="-152" r="7" fill="#f4c04e" class="k"/><path d="M 44 -152 L 6 -146" stroke="#241006" stroke-width="4" stroke-linecap="round"/><rect x="-2" y="-150" width="12" height="7" rx="2" fill="#fbe6cc" class="k"/></g>`],
+  ['floor', 'radio', 'obj', `
+    <g class="bop"><path d="M 34 -64 L 62 -126" class="kt" style="stroke-width:3px"/><circle cx="62" cy="-126" r="4" fill="#f2662a" class="k"/>
+    <rect x="-52" y="-66" width="104" height="66" rx="10" fill="#1f6b70" class="k"/>
+    <circle cx="-18" cy="-33" r="22" fill="#fbe6cc" class="k"/><path d="M -30 -40 h 24 M -32 -33 h 28 M -30 -26 h 24" class="kt" opacity=".6"/>
+    <rect x="14" y="-54" width="28" height="13" rx="3" fill="#fbe6cc" class="k"/><path d="M 24 -54 v 13" stroke="#b32317" stroke-width="2.5"/>
+    <circle cx="28" cy="-22" r="8" fill="#f4c04e" class="k"/></g>`],
+  ['floor', 'lava', 'obj', `
+    <g class="stool fade on"><rect x="-38" y="-112" width="76" height="12" rx="6" fill="#9a5a2a" class="k"/><path d="M -28 -100 L -36 0 M 28 -100 L 36 0 M 0 -100 V -4" stroke="#241006" stroke-width="5" stroke-linecap="round"/></g>
+    <g class="lamp-body" transform="translate(0 -112)">
+      <path d="M -22 0 L 22 0 L 17 -34 L -17 -34 Z" fill="#f4c04e" class="k"/>
+      <g transform="translate(0 -30)">
+        <path d="M -17 -4 L 17 -4 L 11 -120 L -11 -120 Z" fill="#7b2d5b" class="k"/>
+        <g clip-path="url(#lavaClip)"><g transform="translate(-3 -14)"><ellipse class="blob" rx="10" ry="12" fill="#f2662a"/></g><g transform="translate(5 -6)"><ellipse class="blob b" rx="7" ry="9" fill="#f4c04e"/></g><g transform="translate(0 -2)"><ellipse class="blob c" rx="6" ry="6" fill="#ff8a52"/></g><ellipse cx="0" cy="-4" rx="18" ry="8" fill="#f2662a"/></g>
+        <path d="M -17 -4 L 17 -4 L 11 -120 L -11 -120 Z" fill="none" class="k"/>
+        <path d="M -11 -120 L 11 -120 L 7 -142 L -7 -142 Z" fill="#f4c04e" class="k"/>
+      </g>
+    </g>`],
+  ['floor', 'tv', 'obj', `
+    <path d="M -58 -54 L -80 0 M 58 -54 L 80 0" stroke="#241006" stroke-width="7" stroke-linecap="round"/>
+    <path d="M -4 -192 L -44 -252 M 4 -192 L 40 -246" class="kt" style="stroke-width:3px"/><circle cx="-44" cy="-252" r="4.5" fill="#f2662a" class="k"/><circle cx="40" cy="-246" r="4.5" fill="#f2662a" class="k"/>
+    <rect x="-96" y="-192" width="192" height="142" rx="18" fill="#9a5a2a" class="k"/>
+    <rect x="-80" y="-176" width="120" height="112" rx="20" fill="#223" class="k"/>
+    <g clip-path="url(#tvClip)"><g class="tvbars">${['#fbe6cc', '#f4c04e', '#58b3a8', '#7a8743', '#c2528e', '#d8442a'].map((c, i) => `<rect x="${-80 + i * 20}" y="-176" width="20.5" height="86" fill="${c}"/>`).join('')}<rect x="-80" y="-90" width="120" height="26" fill="#241006"/><rect x="-60" y="-84" width="24" height="12" fill="#fbe6cc"/><rect x="-24" y="-84" width="24" height="12" fill="#1f6b70"/></g><g opacity=".12"><rect class="flick" x="-80" y="-176" width="120" height="112" fill="#fff"/></g></g>
+    <rect x="-80" y="-176" width="120" height="112" rx="20" fill="none" class="k"/>
+    <circle cx="68" cy="-160" r="10" fill="#fbe6cc" class="k"/><path d="M 68 -160 v -7" class="kt"/><circle cx="68" cy="-132" r="10" fill="#fbe6cc" class="k"/><path d="M 68 -132 l 5 -5" class="kt"/>
+    <path d="M 54 -106 h 28 M 54 -96 h 28 M 54 -86 h 28 M 54 -76 h 28" class="kt"/>`],
+  ['floor', 'chair', 'obj', `
+    <g class="bop">
+    <ellipse cx="0" cy="-9" rx="72" ry="12" fill="#e7dcc8" class="k"/><rect x="-7" y="-66" width="14" height="56" fill="#e7dcc8" class="k"/>
+    <path d="M -74 -84 C -116 -196 -44 -276 22 -266 C 98 -254 114 -152 82 -92 C 60 -52 -42 -50 -74 -84 Z" fill="#fff3df" class="k"/>
+    <path d="M -52 -98 C -84 -184 -28 -244 20 -238 C 72 -230 86 -152 62 -108 C 44 -78 -30 -74 -52 -98 Z" fill="var(--chairin, #f2662a)" class="k"/>
+    <ellipse cx="6" cy="-102" rx="52" ry="17" fill="#fff" opacity=".22"/><ellipse cx="6" cy="-102" rx="52" ry="17" fill="none" class="k"/>
+    </g>`],
+  ['floor', 'cat', 'obj', `
+    <g class="cat">
+      <g class="tail"><path d="M 24 -8 C 62 -4 66 -46 46 -56" style="stroke:#241006;stroke-width:15px;stroke-linecap:round" fill="none"/><path d="M 24 -8 C 62 -4 66 -46 46 -56" style="stroke:#fff3df;stroke-width:10.5px;stroke-linecap:round" fill="none"/></g>
+      <path d="M -31 0 C -38 -42 -22 -68 0 -68 C 22 -68 38 -42 31 0 Z" fill="#fff3df" class="k"/>
+      <ellipse cx="-13" cy="-3" rx="10" ry="5.5" fill="#fff3df" class="k"/><ellipse cx="13" cy="-3" rx="10" ry="5.5" fill="#fff3df" class="k"/>
+      <g class="cat-head" transform="translate(0 -80)">
+        <g class="ear l"><path d="M -25 -8 L -24 -38 L -5 -19 Z" fill="#fff3df" class="k"/><path d="M -20 -14 L -20 -28 L -11 -19 Z" fill="#f2662a"/></g>
+        <g class="ear r"><path d="M 25 -8 L 24 -38 L 5 -19 Z" fill="#fff3df" class="k"/><path d="M 20 -14 L 20 -28 L 11 -19 Z" fill="#f2662a"/></g>
+        <ellipse rx="28" ry="23" fill="#fff3df" class="k"/>
+        <path d="M 6 -22 C 12 -12 22 -10 27 -6 C 28 -14 20 -24 6 -22 Z" fill="#f2662a" opacity=".85"/>
+        <g class="eyes-open"><ellipse cx="-11" cy="-2" rx="6.5" ry="7.5" fill="#f4c04e" class="k"/><ellipse cx="11" cy="-2" rx="6.5" ry="7.5" fill="#f4c04e" class="k"/><g class="pupil"><ellipse cx="-11" cy="-2" rx="2.4" ry="6" fill="#241006"/><ellipse cx="11" cy="-2" rx="2.4" ry="6" fill="#241006"/></g></g>
+        <path class="eyes-shut kt" d="M -17 -1 q 6 5 12 0 M 5 -1 q 6 5 12 0"/>
+        <path d="M -3 7 h 6 l -3 4 Z" fill="#f2662a" class="k"/>
+        <path d="M -8 10 h -22 M -8 13 l -20 6 M 8 10 h 22 M 8 13 l 20 6" class="kt" opacity=".45"/>
+        <g font-family="Anybody, sans-serif" font-weight="900" font-size="20" fill="#241006"><text class="zz" x="26" y="-26">z</text><text class="zz b" x="26" y="-26">z</text><text class="zz c" x="26" y="-26">z</text></g>
+      </g>
+    </g>`],
+  ['floor', 'dog', 'obj', `
+    <g class="bop">
+    <path class="wag" d="M 82 -52 C 100 -66 106 -82 100 -98" style="stroke:#b5642a;stroke-width:9px;stroke-linecap:round" fill="none"/>
+    <rect x="52" y="-40" width="15" height="40" rx="7" fill="#b5642a" class="k"/><rect x="-44" y="-40" width="15" height="40" rx="7" fill="#b5642a" class="k"/>
+    <rect x="-72" y="-74" width="162" height="46" rx="23" fill="#c9793a" class="k"/>
+    <rect x="68" y="-40" width="15" height="40" rx="7" fill="#c9793a" class="k"/><rect x="-62" y="-40" width="15" height="40" rx="7" fill="#c9793a" class="k"/>
+    <g class="dog-head" transform="translate(-84 -84)">
+      <rect x="-56" y="-6" width="52" height="24" rx="12" fill="#c9793a" class="k"/>
+      <ellipse rx="31" ry="26" fill="#c9793a" class="k"/>
+      <path class="tongue k" d="M -44 16 q 2 16 9 14 q 6 -2 3 -14 Z" fill="#ff8a8a"/>
+      <circle cx="-53" cy="4" r="6" fill="#241006"/>
+      <circle cx="-10" cy="-7" r="4" fill="#241006"/><circle cx="-11.200" cy="-8.200" r="1.300" fill="#fff"/>
+      <path d="M 6 -18 C 30 -18 32 22 14 34 C 0 26 -2 0 6 -18 Z" fill="#8a4b1f" class="k"/>
+      <rect x="14" y="14" width="16" height="10" rx="4" fill="#1f6b70" class="k" transform="rotate(30 22 19)"/>
+    </g></g>`],
+  ['floor', 'notes', '', `<g class="note" style="--nx:-50px">${NOTE}</g><g class="note b" style="--nx:44px" transform="translate(16 0)">${NOTE}</g><g class="note c" style="--nx:-14px" transform="translate(-14 0)">${NOTE}</g><g class="note d" style="--nx:70px" transform="translate(4 0)">${NOTE}</g>`],
+  ['wall', 'disco', 'obj drop', `
+    <path d="M 0 -3000 V 108" class="kt"/>
+    <circle cx="0" cy="160" r="52" fill="#c9d3d6" class="k"/>
+    <g clip-path="url(#ballClip)"><path d="M -60 108 h 120 v 46 h -120 Z" fill="#fff" opacity=".35"/><path d="M -60 180 h 120 v 40 h -120 Z" fill="#241006" opacity=".16"/><g class="ballspin"><path d="${ballGrid()}" class="kt" opacity=".6"/></g>${sparkles()}</g>
+    <circle cx="0" cy="160" r="52" fill="none" class="k"/><rect x="-7" y="100" width="14" height="10" rx="2" fill="#241006"/>`],
+];
+
+const things = {};
+const posEls = {};
+function addPos(parent, key, cls, html) {
+  const g = document.createElementNS(NS, 'g');
+  g.setAttribute('class', 'pos ' + cls); g.dataset.pos = key; g.innerHTML = html; parent.appendChild(g);
+  (posEls[key] ||= []).push(g); return g;
+}
+for (const [grp, key, cls, html] of THINGS) {
+  things[key] = addPos(grp === 'wall' ? $('#wallThings') : $('#things'), key, cls, cls.includes('obj') ? `<g class="pop">${html}</g>` : html);
+  things[key].id = 'o-' + key;
+}
+// lights: holes cut in the dark, and warm glows on top of it
+const LIGHTS = { lamp: [0, -170, 470], fire: [0, -110, 330], lava: [0, -200, 170], tv: [-20, -120, 240], window: [0, 0, 250], disco: [0, 160, 170] };
+const holes = {}, glows = {};
+for (const k in LIGHTS) { const [x, y, r] = LIGHTS[k]; holes[k] = addPos($('#holes'), k, '', `<circle class="hole" cx="${x}" cy="${y}" r="${r}" fill="url(#hole)"/>`).firstChild; }
+glows.lamp = addPos($('#glows'), 'lamp', '', `<path class="glow" d="M -64 -296 L 64 -296 L 230 20 L -230 20 Z" fill="url(#cone)"/>`).firstChild;
+glows.fire = addPos($('#glows'), 'fire', '', `<g class="glow"><circle class="flick" cx="0" cy="-110" r="250" fill="url(#gFire)"/></g>`).firstChild;
+glows.lava = addPos($('#glows'), 'lava', '', `<circle class="glow" cx="0" cy="-200" r="120" fill="url(#gLava)"/>`).firstChild;
+glows.tv = addPos($('#glows'), 'tv', '', `<g class="glow"><circle class="flick" cx="-20" cy="-120" r="200" fill="url(#gTv)"/></g>`).firstChild;
+const catEyes = addPos($('#glows'), 'cat', '', `<g class="glow" transform="translate(0 -80)"><ellipse cx="-11" cy="-2" rx="6.5" ry="7.5" fill="#ffd95e"/><ellipse cx="11" cy="-2" rx="6.5" ry="7.5" fill="#ffd95e"/><ellipse cx="-11" cy="-2" rx="2.2" ry="6" fill="#241006"/><ellipse cx="11" cy="-2" rx="2.2" ry="6" fill="#241006"/></g>`).firstChild;
+// disco spots and confetti ride on top of everything
+const spotRow = (y, n, cls) => { let d = ''; for (let k = -6; k < 6; k++) for (let i = 0; i < n; i++) { const r = 12 + ((i * 7 + 3) % 5) * 4; d += `<ellipse cx="${k * 400 + (i * 400 / n + (i % 2) * 37).toFixed(0)}" cy="${y + ((i * 53) % 90) - 45}" rx="${r}" ry="${(r * .72).toFixed(0)}"/>`; } return `<g class="row ${cls}">${d}</g>`; };
+const spots = el(spotRow(110, 4, '') + spotRow(330, 3, 'b') + spotRow(520, 4, '') + spotRow(760, 3, 'b'));
+spots.setAttribute('class', 'spots'); $('#glows').appendChild(spots);
+const confetti = el((() => { const C = ['#f2662a', '#f4c04e', '#1f6b70', '#fbe6cc', '#b32317', '#c2528e']; let d = ''; for (let i = 0; i < 34; i++) d += `<g transform="translate(${(-780 + rnd() * 1560).toFixed(0)} 0)"><rect x="-6" y="-4" width="12" height="8" fill="${C[i % 6]}" style="animation-delay:${(-rnd() * 4).toFixed(2)}s;animation-duration:${(3 + rnd() * 2.4).toFixed(2)}s"/></g>`; return d; })());
+confetti.setAttribute('class', 'confetti'); $('#glows').appendChild(confetti);
+
+/* ---------- layout: two arrangements, fitted above the dock ---------- */
+const LAYOUT = {
+  wide: { sw: 1600, sh: 900, hz: 600, gs: 1,
+    window: [-255, 250, 1], art: [235, 250, 1], disco: [478, 0, 1], bunting: [0, 62, 1],
+    rug: [-170, 805, 1], fire: [-700, 705, 1], plant: [-548, 712, 1], sofa: [-255, 705, 1], lamp: [45, 705, 1], records: [235, 705, 1], radio: [235, 705, 1],
+    lava: [330, 705, 1], lavaOn: [323, 693, 1, 706], tv: [478, 705, 1], chair: [690, 712, 1], cat: [-130, 705, 1], catOn: [-130, 597, 1, 706], dog: [70, 858, 1.05], notes: [215, 520, 1] },
+  tall: { sw: 800, sh: 1000, hz: 590, gs: .68,
+    window: [-170, 240, .8], art: [222, 268, .72], disco: [42, 0, .78], bunting: [0, 40, .52],
+    rug: [-10, 806, .82], fire: [-338, 680, .72], plant: [-338, 842, .8], sofa: [-80, 680, .78], lamp: [166, 680, .78], records: [302, 680, .74], radio: [302, 680, .8],
+    lava: [352, 850, .82], lavaOn: [367, 671, .74, 681], tv: [262, 880, .8], chair: [-190, 965, .82], cat: [-10, 690, .82], catOn: [8, 596, .8, 681], dog: [60, 950, .86], notes: [288, 540, .8] },
+};
+let lay = LAYOUT.wide, layName = '';
+function place() {
+  const P = { ...lay };
+  if (S.sofa) P.cat = lay.catOn;
+  if (S.records) P.lava = lay.lavaOn;
+  if (!S.records) P.notes = [lay.radio[0] + 10 * lay.radio[2], lay.radio[1] - 120 * lay.radio[2], lay.radio[2]];
+  for (const key in posEls) { const p = P[key]; if (!p) continue; for (const g of posEls[key]) g.style.transform = `translate(${p[0]}px,${p[1]}px) scale(${p[2]})`; }
+  // paint things back to front
+  const host = $('#things');
+  [...host.children].map((n, i) => [n, ((p) => p[3] ?? p[1])(P[n.dataset.pos] || [0, 0]) + (n.dataset.pos === 'rug' ? -500 : n.dataset.pos === 'notes' ? 500 : 0), i]).sort((a, b) => a[1] - b[1] || a[2] - b[2]).forEach(([n], i) => { if (host.children[i] !== n) host.insertBefore(n, host.children[i]); });
+}
+function fit() {
+  const W = innerWidth, H = innerHeight;
+  const dockTop = $('#dock').getBoundingClientRect().top + (W < 640 ? 0 : 26);
+  document.body.style.setProperty('--dockh', (H - dockTop + 26) + 'px');
+  const top = W < 640 ? 58 : 20, availH = Math.max(140, dockTop - 10 - top);
+  const sc = (l) => Math.min(W / l.sw, availH / l.sh);
+  const name = sc(LAYOUT.tall) * sc(LAYOUT.tall) * 800 * 1000 > sc(LAYOUT.wide) * sc(LAYOUT.wide) * 1600 * 900 * 1.05 ? 'tall' : 'wide';
+  lay = LAYOUT[name]; const s = sc(lay);
+  svg.setAttribute('viewBox', `${-W / (2 * s)} ${lay.sh - (dockTop - 10) / s} ${W / s} ${H / s}`);
+  if (name !== layName) {
+    layName = name;
+    $('#floorG').setAttribute('transform', `translate(0 ${lay.hz})`);
+    $('#gfxG').setAttribute('transform', `translate(0 ${lay.hz}) scale(${lay.gs}) translate(0 -600)`);
+    spots.setAttribute('transform', `scale(${name === 'tall' ? .8 : 1})`);
+    confetti.setAttribute('transform', `scale(${name === 'tall' ? .55 : 1})`);
+    place();
+  }
+}
+
+/* ---------- state ---------- */
+const BOOLS = ['music', 'sofa', 'chair', 'lamp', 'plant', 'records', 'lava', 'disco', 'cat', 'dog', 'rug', 'art', 'tv', 'fire'];
+const CHOICES = { wall: 'unsaid', graphic: 'none', floor: 'unsaid', time: 'unsaid', weather: 'clear', sofaColor: 'unsaid' };
+const fresh = () => { const s = { ...CHOICES, lights: 2, mood: 2, groove: 1, lightLevel: 2, moodLevel: 2 }; for (const b of BOOLS) s[b] = false; return s; };
+let S = fresh(), prob = {};
+const ON = 0.6, OFF = 0.4;
+const level = (prev, v) => (Math.abs(v - prev) > 0.62 ? Math.round(v) : prev);
+
+function applyAnswers(a) {
+  const before = S; S = { ...S };
+  for (const b of BOOLS) { const p = a[b]?.probability; if (p == null) continue; prob[b] = p; if (!S[b] && p > ON) S[b] = true; else if (S[b] && p < OFF) S[b] = false; }
+  for (const c in CHOICES) { const q = a[c]; if (!q) continue; const p = q.probabilities?.[q.choice] ?? 1; prob[c] = p; if (q.choice !== S[c] && p >= 0.5) S[c] = q.choice; }
+  if (a.lights) { S.lights = a.lights.score; S.lightLevel = level(S.lightLevel, S.lights); }
+  if (a.mood) { S.mood = a.mood.score; S.moodLevel = level(S.moodLevel, S.mood); }
+  S.groove = S.moodLevel <= 1 ? 0 : S.moodLevel >= 4 ? 2 : S.moodLevel >= 3 ? 1 : (S.disco ? 1 : 0);
+  render(before);
+}
+
+const SOFA_DEFAULTS = ['mustard', 'persimmon', 'teal'];
+const gfxColors = (wall) => ['#f2662a', '#f4c04e', '#b32317', '#fbe6cc', '#1f6b70', '#7b2d5b'].filter((c) => c !== PAINT[wall] && !(wall === 'unsaid' && c === '#fbe6cc'));
+let wipeToken = 0;
+function paintWall(col) {
+  const wall = $('#wall'), wipe = $('#wallWipe'), my = ++wipeToken;
+  if (reduce) { wall.setAttribute('fill', col); return; }
+  wipe.classList.remove('go'); wipe.setAttribute('fill', col); void wipe.getBoundingClientRect(); wipe.classList.add('go');
+  setTimeout(() => { if (my !== wipeToken) return; wall.setAttribute('fill', col); wipe.classList.remove('go'); }, 640);
+}
+
+function render(prev) {
+  const first = !prev; prev ||= {};
+  const root = svg;
+  // paint
+  if (first || prev.wall !== S.wall) {
+    const col = S.wall === 'unsaid' ? BARE : PAINT[S.wall];
+    if (first) { $('#wall').setAttribute('fill', col); } else { paintWall(col); sfx('paint'); }
+    gfxColors(S.wall).slice(0, 4).forEach((c, i) => root.style.setProperty('--g' + (i + 1), c));
+    root.style.setProperty('--enamel', S.wall === 'brick' || S.wall === 'persimmon' ? '#fbe6cc' : '#b32317');
+    root.style.setProperty('--shag', S.wall === 'persimmon' || S.wall === 'brick' ? '#7a8743' : '#f2662a');
+    root.style.setProperty('--shadecol', S.wall === 'persimmon' ? '#f4c04e' : '#f2662a');
+    root.style.setProperty('--chairin', S.wall === 'persimmon' ? '#1f6b70' : '#f2662a');
+  }
+  const sofaKey = S.sofaColor !== 'unsaid' ? S.sofaColor : SOFA_DEFAULTS.find((c) => c !== S.wall);
+  root.style.setProperty('--sofa', PAINT[sofaKey]);
+  root.style.setProperty('--cushion', sofaKey === 'teal' || sofaKey === 'cream' ? '#f2662a' : sofaKey === 'mustard' ? '#1f6b70' : '#f4c04e');
+  if (prev.graphic !== S.graphic) { document.querySelectorAll('.gfx').forEach((g) => g.classList.toggle('on', g.dataset.g === S.graphic)); if (!first && S.graphic !== 'none') sfx('paint'); }
+  if (prev.floor !== S.floor) { document.querySelectorAll('.floor').forEach((f) => { const on = f.dataset.f === S.floor; f.style.opacity = on ? 1 : 0; f.parentNode.insertBefore(f, on ? f.parentNode.lastElementChild : f.parentNode.firstChild); }); if (!first) sfx('paint'); }
+
+  // the window
+  const t = S.time === 'unsaid' ? 'day' : S.time;
+  document.querySelectorAll('.sky').forEach((r) => r.setAttribute('opacity', r.dataset.t === t ? 1 : 0));
+  const sunAt = { morning: [-70, 52, .8], day: [62, -78, 1], sunset: [30, 84, 1.5], night: [30, 260, 1] }[t];
+  const sun = $('.sun'); sun.style.transform = `translate(${sunAt[0]}px,${sunAt[1]}px) scale(${sunAt[2]})`; sun.firstChild.style.fill = t === 'sunset' ? '#f2662a' : t === 'morning' ? '#fbe08a' : '#f4c04e';
+  $('.moon').style.transform = t === 'night' ? 'translate(62px,-78px)' : 'translate(62px,240px)';
+  $('.stars').setAttribute('opacity', t === 'night' ? 1 : 0);
+  $('.clouds').style.opacity = t === 'night' ? .25 : 1;
+  document.querySelectorAll('.wx').forEach((g) => g.setAttribute('opacity', g.dataset.w === S.weather ? 1 : 0));
+
+  // things
+  let appeared = null;
+  for (const k of ['sofa', 'chair', 'lamp', 'plant', 'records', 'lava', 'disco', 'cat', 'dog', 'rug', 'art', 'tv', 'fire']) {
+    if (!!prev[k] !== S[k]) { things[k].classList.toggle('on', S[k]); if (!first) { sfx(S[k] ? 'in' : 'out', k); if (S[k]) appeared = k; } }
+  }
+  const radio = S.music && !S.records;
+  things.radio.classList.toggle('on', radio);
+  $('.stool').classList.toggle('on', !S.records);
+  if (first || prev.sofa !== S.sofa || prev.records !== S.records || prev.music !== S.music) place();
+  if (appeared && appeared !== 'cat') catLook(appeared);
+
+  // light
+  const lv = S.lights, night = t === 'night';
+  let D = { morning: .05, day: 0, sunset: .2, night: .6 }[t];
+  D += lv < 2 ? (2 - lv) * .2 : (2 - lv) * (night ? .2 : .08);
+  if (S.weather !== 'clear' && !night) D += .08;
+  D = Math.max(0, Math.min(.86, D));
+  const lit = S.lightLevel >= 1;
+  $('#shade').setAttribute('opacity', D.toFixed(3));
+  $('#tint').setAttribute('opacity', t === 'sunset' ? .13 : t === 'morning' ? .05 : 0);
+  $('#tint').setAttribute('fill', t === 'morning' ? '#f4c04e' : '#f2662a');
+  const glow = (k, on, a) => { if (glows[k]) glows[k].style.opacity = on ? Math.min(1, a) : 0; };
+  const hole = (k, v) => { holes[k].style.opacity = v; };
+  hole('lamp', S.lamp && lit ? 1 : 0); glow('lamp', S.lamp && lit, .35 + D * 1.1);
+  $('.bulb').style.fill = S.lamp && lit ? '#fff3b0' : '#cbb89a';
+  hole('fire', S.fire ? .95 : 0); glow('fire', S.fire, .3 + D * 1.2);
+  hole('lava', S.lava ? .9 : 0); glow('lava', S.lava, .2 + D * 1.3);
+  hole('tv', S.tv ? .8 : 0); glow('tv', S.tv, .1 + D * 1.3);
+  hole('window', night ? .5 : .75); hole('disco', S.disco ? .8 : 0);
+  catEyes.style.opacity = S.cat && D > .5 && S.moodLevel > 0 ? 1 : 0;
+
+  // mood and music
+  const party = S.moodLevel >= 4;
+  root.classList.toggle('party', party);
+  root.classList.toggle('music', S.music);
+  root.classList.toggle('g1', S.groove === 1); root.classList.toggle('g2', S.groove === 2);
+  spots.classList.toggle('on', S.disco);
+  things.cat.classList.toggle('asleep', S.moodLevel <= 0);
+  const bpm = [76, 102, 122][S.groove];
+  root.style.setProperty('--beat', (60 / bpm).toFixed(3) + 's');
+  $('.tongue').style.display = S.moodLevel >= 2 ? '' : 'none';
+  if (!first && party && !(prev.moodLevel >= 4)) sfx('party');
+  music.set(S.music, S.groove);
+  chips();
+}
+
+/* ---------- the cat pays attention ---------- */
+const catHead = () => $('.cat-head'), pupil = $('.pupil');
+let lookUntil = 0, pointer = null;
+function aim(cx, cy) { const r = catHead().getBoundingClientRect(); const dx = cx - (r.left + r.width / 2), dy = cy - (r.top + r.height / 2), d = Math.hypot(dx, dy) || 1, m = Math.min(1, d / 120); pupil.style.transform = `translate(${(dx / d * 3.4 * m).toFixed(2)}px,${(dy / d * 1.6 * m).toFixed(2)}px)`; }
+function catLook(key) { if (!S.cat) return; const r = things[key].getBoundingClientRect(); aim(r.left + r.width / 2, r.top + r.height / 2); lookUntil = performance.now() + 1500; setTimeout(() => { if (performance.now() >= lookUntil) pointer ? aim(pointer[0], pointer[1]) : (pupil.style.transform = ''); }, 1550); }
+addEventListener('pointermove', (e) => { pointer = [e.clientX, e.clientY]; if (S.cat && performance.now() > lookUntil) aim(e.clientX, e.clientY); }, { passive: true });
+function perk() { const c = things.cat; c.classList.add('perk'); clearTimeout(perk.t); perk.t = setTimeout(() => c.classList.remove('perk'), 380); }
+(function blink() { const c = things.cat; c.classList.add('blink'); setTimeout(() => c.classList.remove('blink'), 120); setTimeout(blink, 2200 + Math.random() * 3600); })();
+
+/* ---------- chips: what Jev currently believes ---------- */
+const hears = $('#hears'); const chipEls = new Map();
+const LIGHT_NAMES = ['lights off', 'dim lights', '', 'bright lights', 'blazing lights'], MOOD_NAMES = ['sleepy', 'mellow', '', 'groovy', 'party'];
+const THING_NAMES = { sofa: 'sofa', chair: 'chair', lamp: 'lamp', plant: 'plant', records: 'record player', lava: 'lava lamp', disco: 'disco ball', cat: 'cat', dog: 'dog', rug: 'rug', art: 'art', tv: 'TV', fire: 'fireplace', music: 'music' };
+function describe() {
+  const out = [];
+  if (S.wall !== 'unsaid') out.push(['wall', PAINT_NAME[S.wall] + ' walls', prob.wall, PAINT[S.wall]]);
+  if (S.graphic !== 'none') out.push(['graphic', S.graphic + (S.graphic === 'rainbow' || S.graphic === 'sunburst' ? '' : ' on the wall'), prob.graphic]);
+  if (S.floor !== 'unsaid') out.push(['floor', { wood: 'wood floor', shag: 'shag carpet', checker: 'checker floor', cork: 'cork floor' }[S.floor], prob.floor]);
+  if (S.time !== 'unsaid') out.push(['time', S.time, prob.time]);
+  if (S.weather !== 'clear') out.push(['weather', S.weather, prob.weather]);
+  if (S.lightLevel !== 2) out.push(['lights', LIGHT_NAMES[S.lightLevel]]);
+  if (S.moodLevel !== 2) out.push(['mood', MOOD_NAMES[S.moodLevel]]);
+  for (const b of BOOLS) if (S[b]) out.push([b, (b === 'sofa' && S.sofaColor !== 'unsaid' ? PAINT_NAME[S.sofaColor] + ' ' : '') + THING_NAMES[b], prob[b], b === 'sofa' && S.sofaColor !== 'unsaid' ? PAINT[S.sofaColor] : null]);
+  return out;
+}
+function chips() {
+  const list = describe(), seen = new Set();
+  hears.querySelector('.none').hidden = list.length > 0;
+  for (const [id, label, p, sw] of list) {
+    seen.add(id); let c = chipEls.get(id);
+    if (!c || c.classList.contains('out')) { c?.remove(); c = document.createElement('span'); c.className = 'chip'; chipEls.set(id, c); hears.appendChild(c); c.scrollIntoView({ block: 'nearest', inline: 'end' }); }
+    const html = (sw ? `<i style="background:${sw}"></i>` : '') + label + (p != null ? ` <b>${Math.round(p * 100)}%</b>` : '');
+    if (c._h !== html) { c.innerHTML = html; c._h = html; }
+  }
+  for (const [id, c] of chipEls) if (!seen.has(id) && !c.classList.contains('out')) { c.classList.add('out'); setTimeout(() => { c.remove(); if (chipEls.get(id) === c) chipEls.delete(id); }, reduce ? 0 : 380); }
+}
+
+/* ---------- sound: a little house band and some pops, all synthesised ---------- */
+const A = { ctx: null, on: !params.has('mute') };
+function audio() {
+  if (!A.on) return null;
+  if (!A.ctx) {
+    const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return null;
+    const c = A.ctx = new AC();
+    const comp = c.createDynamicsCompressor(); comp.threshold.value = -16; comp.ratio.value = 5; comp.connect(c.destination);
+    A.master = c.createGain(); A.master.gain.value = .7; A.master.connect(comp);
+    A.band = c.createGain(); A.band.gain.value = 0;
+    const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 6200; A.band.connect(lp); lp.connect(A.master);
+    const n = c.createBuffer(1, c.sampleRate, c.sampleRate), d = n.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1; A.noise = n;
+  }
+  if (A.ctx.state === 'suspended') A.ctx.resume().catch(() => {});
+  return A.ctx;
+}
+const hz = (m) => 440 * Math.pow(2, (m - 69) / 12);
+function tone(dest, type, f, t, dur, g, f2, cutoff) {
+  const c = A.ctx, o = c.createOscillator(), v = c.createGain(); o.type = type; o.frequency.setValueAtTime(f, t); if (f2) o.frequency.exponentialRampToValueAtTime(f2, t + dur);
+  v.gain.setValueAtTime(0.0001, t); v.gain.exponentialRampToValueAtTime(g, t + 0.008); v.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  let node = o; if (cutoff) { const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = cutoff; o.connect(lp); node = lp; }
+  node.connect(v); v.connect(dest); o.start(t); o.stop(t + dur + .03);
+}
+function hiss(dest, t, dur, g, type, f, f2) {
+  const c = A.ctx, s = c.createBufferSource(), fl = c.createBiquadFilter(), v = c.createGain(); s.buffer = A.noise; fl.type = type; fl.frequency.setValueAtTime(f, t); if (f2) fl.frequency.exponentialRampToValueAtTime(f2, t + dur);
+  v.gain.setValueAtTime(g, t); v.gain.exponentialRampToValueAtTime(0.0001, t + dur); s.connect(fl); fl.connect(v); v.connect(dest); s.start(t, Math.random() * .5, dur + .02);
+}
+const SFX_PITCH = { sofa: 52, chair: 57, lamp: 76, plant: 64, records: 60, lava: 71, disco: 83, cat: 79, dog: 55, rug: 50, art: 69, tv: 62, fire: 59 };
+function sfx(kind, key) {
+  const c = audio(); if (!c || c.state !== 'running') return; const t = c.currentTime + .005;
+  if (kind === 'in') { const f = hz(SFX_PITCH[key] || 64); tone(A.master, 'sine', f, t, .16, .16, f * 1.5); tone(A.master, 'triangle', f * 2, t + .05, .12, .05); }
+  else if (kind === 'out') { const f = hz(SFX_PITCH[key] || 64); tone(A.master, 'sine', f * 1.2, t, .16, .12, f * .55); }
+  else if (kind === 'paint') hiss(A.master, t, .32, .07, 'bandpass', 500, 2600);
+  else if (kind === 'party') [72, 76, 79, 84].forEach((m, i) => tone(A.master, 'triangle', hz(m), t + i * .06, .22, .1));
+}
+// The band: three grooves on one progression, picked by the mood.
+const CH = [[50, [62, 65, 69, 72]], [55, [59, 62, 65, 69]], [48, [60, 64, 67, 71]], [45, [60, 64, 67, 72]]]; // Dm7 G7 Cmaj7 Am7
+const music = {
+  on: false, groove: 1, step: 0, next: 0, timer: 0,
+  set(on, groove) {
+    this.groove = groove;
+    if (on === this.on) return; this.on = on;
+    const c = audio(); if (!c) return;
+    A.band.gain.cancelScheduledValues(c.currentTime); A.band.gain.setTargetAtTime(on ? .55 : 0, c.currentTime, on ? .25 : .12);
+    clearInterval(this.timer);
+    if (on) { this.step = 0; this.next = c.currentTime + .08; this.timer = setInterval(() => this.tick(), 30); } else this.timer = setTimeout(() => {}, 0);
+  },
+  tick() {
+    const c = A.ctx; if (!c || c.state !== 'running') { if (c) this.next = c.currentTime + .08; return; }
+    if (this.next < c.currentTime - .3) this.next = c.currentTime + .05;
+    while (this.next < c.currentTime + .14) {
+      const g = this.groove, bpm = [76, 102, 122][g], s16 = 60 / bpm / 4, s = this.step % 16, bar = Math.floor(this.step / 16), t = this.next, B = A.band;
+      const [root, chord] = CH[(g === 0 ? bar : Math.floor(bar / (g === 1 ? 2 : 1))) % 4];
+      const keys = (dur, gain, cut) => chord.forEach((m, i) => { tone(B, 'sine', hz(m), t + i * .012, dur, gain); tone(B, 'triangle', hz(m) * 2, t + i * .012, dur * .5, gain * .22, 0, cut); });
+      const kick = (v) => tone(B, 'sine', 130, t, .22, v, 42), hat = (v, d) => hiss(B, t, d || .04, v, 'highpass', 8200);
+      const snare = (v) => { hiss(B, t, .13, v, 'bandpass', 1900); tone(B, 'triangle', 190, t, .09, v * .6, 120); };
+      const bass = (m, d, v) => tone(B, 'sawtooth', hz(m - 12), t, d, v, 0, 420);
+      if (g === 0) {
+        if (s === 0) { keys(s16 * 14, .075); bass(root, s16 * 6, .2); }
+        if (s === 10) bass(root + 7, s16 * 4, .14);
+        if (s === 4 || s === 12) hat(.035, .06);
+        if (s === 8) keys(s16 * 6, .035);
+      } else if (g === 1) {
+        if (s === 0 || s === 7 || s === 10) kick(.5);
+        if (s === 4 || s === 12) snare(.2);
+        if (s % 2 === 0) hat(s % 4 === 2 ? .07 : .04);
+        const line = { 0: 0, 3: 0, 6: 12, 8: 0, 10: 10, 11: 12, 14: 7 }; if (s in line) bass(root + line[s], s16 * 1.6, .24);
+        if (s === 2 || s === 9) keys(s16 * 2.2, .06, 2400);
+      } else {
+        if (s % 4 === 0) kick(.6);
+        if (s === 4 || s === 12) snare(.22);
+        if (s % 4 === 2) hat(.09, .16); else if (s % 2 === 1) hat(.035);
+        if (s % 2 === 0) bass(root + (s % 4 === 2 ? 12 : 0), s16 * 1.5, .24);
+        if (s === 3 || s === 6 || s === 11 || s === 14) keys(s16 * 1.6, .06, 2600);
+      }
+      this.step++; this.next += s16;
+    }
+  },
+};
+
+/* ---------- talking to Jev ---------- */
+const say = $('#say'), statusEl = $('#status');
+const status = (m, ms) => { statusEl.textContent = m || ''; clearTimeout(status.t); if (m && ms) status.t = setTimeout(() => { if (statusEl.textContent === m) statusEl.textContent = ''; }, ms); };
+let text = '', epoch = 0, seq = 0, shown = 0, inflight = null, lastSend = -1e9, dirtySince = null, pumpTimer = 0, backoffUntil = 0, fails = 0, lastSource = 'type';
+let note = '', cut = 0; // when the talk gets long: a summary of the room so far, plus the recent words
+let tokens = 8, refillAt = performance.now(); const RATE = 3, CAP = 8; // stays inside the server's 40 per 10 s
+const lats = [];
+
+function payload() {
+  if (text.length < cut) { cut = 0; note = ''; }
+  if (text.length - cut > 560) {
+    const from = Math.max(text.length - 240, cut), sp = text.indexOf(' ', from); cut = sp > 0 ? sp + 1 : from;
+    const d = describe().map((x) => x[1].replace(/^(sofa|chair|lamp|plant|record player|lava lamp|disco ball|cat|dog|rug|TV|fireplace)$/, 'a $1'));
+    note = d.length ? `[Room so far: ${d.join('; ')}.] ` : '';
+  }
+  return (note + text.slice(cut)).trim();
+}
+function setText(t, source) {
+  if (t === text) return;
+  text = t; lastSource = source || 'type';
+  document.body.classList.toggle('started', !!text.trim());
+  if (!text.trim()) { clearRoom(); return; }
+  if (dirtySince == null) dirtySince = performance.now();
+  perk(); pump();
+}
+function clearRoom() {
+  epoch++; inflight?.ctrl.abort(); inflight = null; dirtySince = null; clearTimeout(pumpTimer); note = ''; cut = 0;
+  const prev = S; S = fresh(); prob = {}; render(prev);
+}
+function pump() {
+  clearTimeout(pumpTimer);
+  if (inflight || dirtySince == null) return;
+  const now = performance.now();
+  tokens = Math.min(CAP, tokens + (now - refillAt) / 1000 * RATE); refillAt = now;
+  const gap = lastSource === 'type' && /[\w'’]$/.test(text) ? 190 : 115;
+  const wait = Math.max(lastSend + gap - now, tokens >= 1 ? 0 : (1 - tokens) / RATE * 1000, backoffUntil - now);
+  if (wait > 1) { pumpTimer = setTimeout(pump, wait); return; }
+  send();
+}
+async function send(warm) {
+  const my = ++seq, myEpoch = epoch, t0 = dirtySince, ctrl = new AbortController();
+  const body = JSON.stringify({ transcript: warm ? 'hello' : payload() });
+  if (!warm) { dirtySince = null; inflight = { ctrl, my }; }
+  tokens -= 1; lastSend = performance.now();
+  const stuck = setTimeout(() => ctrl.abort(), 2500);
+  try {
+    const r = await fetch('/api/labs/jev', { method: 'POST', headers: { 'content-type': 'application/json' }, body, signal: ctrl.signal });
+    if (warm) { if (r.ok) $('#latSub').textContent = 'Jev is ready'; return; }
+    if (myEpoch !== epoch) return;
+    if (!r.ok) { const e = new Error('http ' + r.status); e.status = r.status; throw e; }
+    const j = await r.json();
+    if (myEpoch !== epoch || my < shown) return; // a late answer never overwrites a newer one
+    shown = my; fails = 0; if (statusEl.dataset.net) { status(''); delete statusEl.dataset.net; }
+    applyAnswers(j.answers);
+    requestAnimationFrame((ts) => latency(Math.max(performance.now(), ts) - t0, j.ms));
+  } catch (e) {
+    if (warm || myEpoch !== epoch) return;
+    if (dirtySince == null) dirtySince = t0; // still owed to the screen
+    fails++;
+    if (e.status === 429) { backoffUntil = performance.now() + 1600; tokens = 0; status('Catching my breath…', 2000); }
+    else { backoffUntil = performance.now() + Math.min(4000, 400 * fails); if (fails > 2) { status(navigator.onLine === false ? 'You are offline.' : 'Jev is not answering. Retrying…'); statusEl.dataset.net = 1; } }
+  } finally {
+    clearTimeout(stuck);
+    if (!warm && inflight?.my === my) { inflight = null; pump(); }
+  }
+}
+function latency(ms, jev) {
+  ms = Math.round(ms); lats.push(ms); if (lats.length > 22) lats.shift();
+  $('#lat').textContent = ms;
+  $('#latSub').textContent = `Jev decided in ${jev} ms`;
+  const mx = Math.max(300, ...lats);
+  $('#spark').innerHTML = lats.map((v) => `<i style="height:${Math.max(2, Math.round(v / mx * 14))}px"></i>`).join('');
+  window.__lab.lat = ms; window.__lab.jev = jev;
+}
+
+/* ---------- typing ---------- */
+say.addEventListener('input', () => { stopScript(); audio(); base = say.value; skip = resultCount; setText(say.value, 'type'); });
+say.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); say.blur(); } });
+function show(t) { say.value = t; say.scrollTop = say.scrollHeight; }
+
+/* ---------- speech ---------- */
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+const mic = $('#mic'); let rec = null, listening = false, base = '', skip = 0, resultCount = 0, restarts = [];
+const join = (a, b) => (a && b ? a.replace(/\s+$/, '') + ' ' + b : a || b).replace(/\s+/g, ' ');
+function micUi() { mic.setAttribute('aria-pressed', listening); $('#micLabel').textContent = listening ? 'Stop' : 'Talk'; }
+function startRec() {
+  rec = new SR(); rec.continuous = true; rec.interimResults = true; rec.maxAlternatives = 1; rec.lang = (navigator.language || '').startsWith('en') ? navigator.language : 'en-US';
+  skip = 0; resultCount = 0;
+  rec.onstart = () => status('Listening. Describe a room.', 2600);
+  rec.onresult = (e) => {
+    resultCount = e.results.length; const parts = []; let interim = '';
+    for (let i = skip; i < e.results.length; i++) {
+      const r = e.results[i], t = r[0].transcript.trim(); if (!t) continue;
+      if (!r.isFinal) { interim += ' ' + t; continue; }
+      const last = parts[parts.length - 1]; // some Android builds repeat the whole phrase in each final result
+      if (last && t.toLowerCase().startsWith(last.toLowerCase())) parts[parts.length - 1] = t; else parts.push(t);
+    }
+    const t = join(base, (parts.join(' ') + interim).trim()); show(t); setText(t, 'speech');
+  };
+  rec.onerror = (e) => {
+    if (e.error === 'not-allowed' || e.error === 'service-not-allowed') { listening = false; micUi(); status('The mic is blocked. Allow it in the address bar, or just type.'); say.focus(); }
+    else if (e.error === 'audio-capture') { listening = false; micUi(); status('No microphone found. You can type instead.'); }
+    else if (e.error === 'network') status('Speech needs a connection. You can type instead.', 5000);
+    else if (e.error === 'language-not-supported') { listening = false; micUi(); status('Speech is not available here. You can type instead.'); }
+  };
+  rec.onend = () => {
+    if (!listening) return;
+    base = text; const now = Date.now(); restarts = restarts.filter((t) => now - t < 6000); restarts.push(now);
+    if (restarts.length > 8) { listening = false; micUi(); status('The mic keeps stopping. You can type instead.'); return; }
+    setTimeout(() => { if (!listening) return; try { startRec(); } catch { listening = false; micUi(); } }, 180);
+  };
+  rec.start();
+}
+mic.addEventListener('click', () => {
+  audio(); stopScript();
+  if (!SR) { status('This browser has no speech recognition. Type instead, it works the same.'); say.focus(); return; }
+  if (listening) { listening = false; micUi(); try { rec.stop(); } catch {} status(''); return; }
+  listening = true; base = text; restarts = []; micUi();
+  try { startRec(); } catch { listening = false; micUi(); status('Could not start the mic. You can type instead.'); }
+});
+if (!SR) { $('#micLabel').textContent = 'Type'; say.placeholder = 'Type a room: teal walls, a big orange sofa, a cat…'; $('#hint small').textContent = 'Type a description below. It furnishes itself while you are still mid-sentence.'; }
+document.addEventListener('visibilitychange', () => { if (document.hidden && listening) { listening = false; micUi(); try { rec.stop(); } catch {} } });
+
+/* ---------- prompts that type themselves, as if spoken ---------- */
+const SCRIPTS = [
+  ['Cosy night', "It's a rainy night. Teal walls, a wood floor and a big mustard sofa. Put a lamp on, a cat on the sofa, and a record playing something mellow."],
+  ['House party', "Orange walls with a huge rainbow. Checkerboard floor, a disco ball, a lava lamp and a dog. Now turn the music up, it's a full party!"],
+  ['Change my mind', "Plum walls with a sunburst, a sofa, a big plant and a TV. Actually, no TV. And make the walls green. No wait, lose the plant too, and add a fireplace."],
+];
+let scriptTimer = 0, scriptBtn = null;
+function stopScript() { clearTimeout(scriptTimer); scriptTimer = 0; scriptBtn?.setAttribute('aria-pressed', 'false'); scriptBtn = null; }
+function typeOut(str, btn, speed = 1) {
+  stopScript(); if (listening) mic.click();
+  show(''); setText('', 'type'); scriptBtn = btn; btn?.setAttribute('aria-pressed', 'true');
+  let i = 0;
+  const step = () => {
+    if (i >= str.length) { stopScript(); return; }
+    i++; const ch = str[i - 1]; show(str.slice(0, i)); setText(str.slice(0, i), 'type');
+    scriptTimer = setTimeout(step, (/[.!?]/.test(ch) ? 620 : ch === ',' ? 300 : ch === ' ' ? 70 : 42) * speed);
+  };
+  scriptTimer = setTimeout(step, 250);
+}
+SCRIPTS.forEach(([name, s]) => { const b = document.createElement('button'); b.type = 'button'; b.className = 'btn'; b.textContent = name; b.addEventListener('click', () => { audio(); if (scriptBtn === b) { stopScript(); return; } typeOut(s, b); }); $('#tries').appendChild(b); });
+
+$('#reset').addEventListener('click', () => { stopScript(); base = ''; skip = resultCount; show(''); setText('', 'type'); status(''); if (!listening && matchMedia('(pointer:fine)').matches) say.focus(); });
+$('#snd').addEventListener('click', (e) => {
+  A.on = !A.on; e.currentTarget.setAttribute('aria-pressed', A.on); e.currentTarget.textContent = A.on ? 'Sound on' : 'Sound off';
+  if (A.on) { audio(); const on = S.music; music.on = false; music.set(on, S.groove); } else if (A.ctx) { clearInterval(music.timer); music.on = false; A.band.gain.setTargetAtTime(0, A.ctx.currentTime, .05); }
+});
+if (!A.on) { $('#snd').setAttribute('aria-pressed', 'false'); $('#snd').textContent = 'Sound off'; }
+// Browsers only allow sound after a gesture, so music that was asked for by voice starts on the first one.
+addEventListener('pointerdown', () => { if (A.on) { audio(); if (S.music && !music.on) music.set(true, S.groove); } }, { passive: true });
+
+/* ---------- go ---------- */
+window.__lab = { get state() { return S; }, get text() { return text; }, set: (t) => { show(t); setText(t, 'type'); }, type: (t, speed) => typeOut(t, null, speed), get busy() { return !!inflight || dirtySince != null || !!scriptTimer; }, lats };
+render(null); fit();
+addEventListener('resize', fit);
+new ResizeObserver(fit).observe($('#dock'));
+document.fonts?.ready.then(fit);
+send(true);
+if (params.has('say')) setTimeout(() => typeOut(params.get('say'), null, Number(params.get('speed')) || 1), 700);
+else if (params.has('t')) setTimeout(() => window.__lab.set(params.get('t')), 300);
+})();
+</script>
+</body>
+</html>

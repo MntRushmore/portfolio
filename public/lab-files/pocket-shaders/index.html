@@ -1,0 +1,345 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>Pocket Shaders</title>
+<link rel="stylesheet" href="../kit.css">
+<style>
+  :root { --mustard: #f4c04e; --teal: #1f6b70; }
+  html, body { overflow: hidden; overscroll-behavior: none; }
+  body { display: grid; grid-template-columns: minmax(0, 1fr) min(430px, 42vw); background: var(--umber); }
+
+  .view { position: relative; min-width: 0; min-height: 0; overflow: hidden; background: var(--umber); }
+  canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; cursor: crosshair; }
+  /* Shown only if WebGL will not start: a still picture made of CSS gradients. */
+  .still {
+    position: absolute; inset: 0; display: none; place-items: end start; padding: 16px;
+    background:
+      radial-gradient(circle at 50% 62%, var(--plaster) 0 17vmin, transparent 17.2vmin),
+      linear-gradient(#b32317 0 20%, #c8421d 20% 40%, #dc6a2b 40% 60%, #e99a3d 60% 62%, #1f6b70 62% 100%);
+  }
+  .still p { margin: 0; max-width: 34ch; }
+  body.nogl .still { display: grid; }
+  body.nogl canvas { display: none; }
+  .tip {
+    position: absolute; left: 16px; bottom: 14px; margin: 0; padding: 6px 12px; border-radius: 999px;
+    background: var(--umber); color: var(--plaster); font-weight: 700; font-size: 13px; pointer-events: none;
+    transition: opacity 500ms var(--ease);
+  }
+  .tip.gone, body.nogl .tip { opacity: 0; }
+
+  .side {
+    position: relative; display: flex; flex-direction: column; gap: 12px; min-height: 0; padding: 18px 18px 16px;
+    background: var(--plaster); border-left: 2px solid var(--umber); overflow: auto;
+  }
+  h1 {
+    margin: 0; font-family: var(--display); font-weight: 900; font-variation-settings: "wdth" 138;
+    font-size: clamp(24px, 2.6vw, 34px); line-height: 0.95; letter-spacing: -0.015em; text-transform: uppercase;
+  }
+  .hook { margin: -4px 0 0; font-size: 15px; font-weight: 600; color: var(--ink-2); line-height: 1.35; }
+  .seg button { flex: 1 1 auto; }
+  .seg { display: flex; }
+
+  .editor { position: relative; flex: 1 1 auto; min-height: 150px; display: flex; }
+  textarea {
+    flex: 1 1 auto; width: 100%; resize: none; margin: 0; padding: 12px 12px 34px; border: 2px solid var(--umber); border-radius: 6px;
+    background: var(--umber); color: var(--plaster); caret-color: var(--mustard);
+    font: 12.5px/1.55 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; white-space: pre-wrap; overflow-wrap: anywhere; tab-size: 2;
+    box-shadow: 4px 4px 0 var(--persimmon);
+  }
+  textarea:focus-visible { outline: 3px solid var(--persimmon); outline-offset: 2px; box-shadow: none; }
+  .bytes {
+    position: absolute; right: 10px; bottom: 9px; padding: 3px 10px; border-radius: 999px; pointer-events: none;
+    background: var(--mustard); color: var(--umber); font-weight: 800; font-size: 13px; font-variant-numeric: tabular-nums;
+  }
+  .status { margin: 0; min-height: 2.9em; font-size: 13px; font-weight: 600; color: var(--ink-2); }
+  .status.bad { color: var(--brick); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; font-weight: 400; }
+  .row { flex-wrap: wrap; }
+
+  .how {
+    position: absolute; left: 12px; right: 12px; bottom: 64px; z-index: 4; max-height: calc(100% - 80px); overflow: auto;
+  }
+  .how[hidden] { display: none; }
+  .how h2 { margin: 0 0 6px; font-family: var(--display); font-weight: 900; font-variation-settings: "wdth" 125; font-size: 16px; text-transform: uppercase; }
+  .how p { margin: 0 0 8px; font-size: 14px; }
+  .how pre {
+    margin: 0 0 8px; padding: 10px; background: var(--umber); color: var(--plaster); border-radius: 4px;
+    font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; overflow: auto;
+  }
+  .how .note { color: var(--ink-2); font-size: 13px; margin: 0; }
+
+  @media (max-width: 760px) {
+    body { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(180px, 38%) minmax(0, 1fr); }
+    .side { border-left: 0; border-top: 2px solid var(--umber); padding: 12px 14px 12px; gap: 9px; }
+    h1 { font-size: 22px; }
+    .hook { font-size: 13.5px; margin-top: -2px; }
+    .editor { min-height: 170px; }
+    .status { min-height: 1.4em; }
+    .tip { left: 10px; bottom: 10px; font-size: 12px; }
+    .how { bottom: 58px; }
+  }
+  @media (pointer: coarse) { textarea { font-size: 13px; } }
+</style>
+</head>
+<body>
+<div class="view">
+  <canvas id="c" aria-label="A moving picture drawn by the short program shown beside it. Move the pointer over it to change it."></canvas>
+  <div class="still"><p class="panel" id="stillNote">WebGL would not start in this browser, so this is a still picture instead. The code beside it is the real code; it just has nowhere to run here.</p></div>
+  <p class="tip" id="tip">Move over the picture</p>
+</div>
+
+<section class="side" aria-label="The code">
+  <h1>Pocket Shaders</h1>
+  <p class="hook">Everything moving over there is the few hundred bytes of code in this box. Change a number and watch.</p>
+  <div class="seg" role="group" aria-label="Picture" id="pick">
+    <button data-v="sunset" aria-pressed="true">Sunset</button><button data-v="lava">Lava lamp</button><button data-v="ribbon">Ribbon</button>
+  </div>
+  <div class="editor">
+    <label class="visually-hidden" for="code">Shader code. Edits run as you type.</label>
+    <textarea id="code" spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off"></textarea>
+    <span class="bytes" id="bytes" aria-live="off">0 bytes</span>
+  </div>
+  <p class="status" id="status" role="status"></p>
+  <div class="row">
+    <button class="btn" id="reset">Undo my edits</button>
+    <button class="btn" id="pause" aria-pressed="false">Pause</button>
+    <button class="btn" id="howBtn" aria-expanded="false" aria-controls="how">How it works</button>
+  </div>
+
+  <div class="how panel" id="how" hidden>
+    <h2>How it works</h2>
+    <p>The box holds a fragment shader: a tiny program the graphics chip runs once for every pixel, every frame. Its only job is to answer "what colour is this pixel?"</p>
+    <p>There are no shapes or images. The sun is "pixels closer than 0.45 to this point", the stripes come from rounding a number down, and the lava is a sum of "one over distance" for a few moving points.</p>
+<pre>// the three lines the page adds for you
+precision highp float;
+uniform float t;    // seconds
+uniform vec2 r, m;  // canvas size, pointer 0–1</pre>
+    <p>The byte count is the size of the text in the box, as typed. Each edit is compiled straight away; if it has a mistake, the last working picture keeps running and the error shows underneath.</p>
+    <p class="note" id="glNote"></p>
+  </div>
+</section>
+
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const qs = new URLSearchParams(location.search);
+  const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const canvas = $("c"), code = $("code"), statusEl = $("status");
+
+  const HEADER = "precision highp float;\nuniform float t;\nuniform vec2 r,m;\n";
+  const HEADER_LINES = 3;
+
+  // The three pictures. gl_FragCoord is the pixel, r the canvas size, t seconds, m the pointer (0 to 1).
+  const SHADERS = {
+    sunset: {
+      tip: "Move up and down to raise the sun",
+      hint: "Try changing .45 (the sun's size) or 9. (its stripes).",
+      src:
+`void main(){
+vec2 p=(gl_FragCoord.xy*2.-r)/r.y;
+float w=1.,h=m.y*1.2-.7;
+if(p.y<-.3)
+ p.x+=sin(p.y*40.-t*3.)*.02,
+ p.y=-.6-p.y,w=.7;
+vec3 c=mix(vec3(.96,.75,.31),
+ vec3(.7,.14,.09),
+ floor(p.y*5.+2.-h*3.)/5.);
+p.y-=h;
+if(length(p)<.45&&
+ fract(p.y*9.-t*.3)>-p.y*1.8)
+ c=vec3(.98,.9,.8);
+gl_FragColor=vec4(c*vec3(1,w,w*w),1);}`,
+    },
+    lava: {
+      tip: "The bright blob follows you",
+      hint: "Try changing 7. (how many blobs) or .8 (how far they roam).",
+      src:
+`void main(){
+vec2 a=vec2(r.x/r.y,1),
+ p=(gl_FragCoord.xy*2.-r)/r.y,
+ q=p-(m*2.-1.)*a;
+float f=.05/dot(q,q);
+for(float i=1.;i<7.;i++)
+ q=p-a*.8*sin(t*vec2(.2,.27)
+  *(1.+i*.2)+i*vec2(2,5)),
+ f+=.015*i/dot(q,q);
+vec3 c=vec3(.14,.06,.02);
+c=mix(c,vec3(.7,.14,.09),step(.7,f));
+c=mix(c,vec3(.95,.4,.16),step(1.,f));
+c=mix(c,vec3(.96,.75,.31),step(1.8,f));
+gl_FragColor=vec4(c,1);}`,
+    },
+    ribbon: {
+      tip: "Move to bend the ribbon",
+      hint: "Try changing 1.6 (the waves) or 7. (how thin the stripes are).",
+      src:
+`void main(){
+vec2 p=(gl_FragCoord.xy*2.-r)/r.y;
+float i=floor(abs(p.y-m.y+.5
+ +sin(p.x*1.6+t*.7+m.x*5.)*.45)
+ *(7.+3.*sin(p.x*2.-t)));
+vec3 c=i>3.?vec3(.98,.9,.8):
+ i<1.?vec3(.7,.14,.09):
+ i<2.?vec3(.95,.4,.16):
+ i<3.?vec3(.96,.75,.31):
+ vec3(.12,.42,.44);
+gl_FragColor=vec4(c,1);}`,
+    },
+  };
+  let current = SHADERS[qs.get("s")] ? qs.get("s") : "sunset";
+
+  // ── WebGL ──────────────────────────────────────────────────────────────────
+  let gl = null;
+  if (!qs.get("nogl")) {
+    try { gl = canvas.getContext("webgl", { antialias: false, alpha: false, powerPreference: "low-power" }) || canvas.getContext("experimental-webgl"); } catch (e) {}
+  }
+  const VERT = "attribute vec2 a;void main(){gl_Position=vec4(a,0,1);}";
+  let prog = null, uT = null, uR = null, uM = null, vs = null;
+
+  function compile(src) {
+    // Returns an error message, or "" when the new shader is now running.
+    const fs = gl.createShader(gl.FRAGMENT_SHADER);
+    gl.shaderSource(fs, HEADER + src);
+    gl.compileShader(fs);
+    if (!gl.getShaderParameter(fs, gl.COMPILE_STATUS)) {
+      const log = gl.getShaderInfoLog(fs) || "It did not compile.";
+      gl.deleteShader(fs);
+      // "ERROR: 0:7: ..." counts our three header lines too; take them off.
+      const first = log.split("\n").find((l) => l.trim()) || log;
+      return first.replace(/ERROR:\s*\d+:(\d+):/, (_, n) => `Line ${Math.max(1, n - HEADER_LINES)}:`).replace(/\0/g, "").trim();
+    }
+    const p = gl.createProgram();
+    gl.attachShader(p, vs); gl.attachShader(p, fs);
+    gl.bindAttribLocation(p, 0, "a");
+    gl.linkProgram(p);
+    gl.deleteShader(fs);
+    if (!gl.getProgramParameter(p, gl.LINK_STATUS)) {
+      const log = (gl.getProgramInfoLog(p) || "It did not link.").replace(/\0/g, "").trim();
+      gl.deleteProgram(p); return log;
+    }
+    if (prog) gl.deleteProgram(prog);
+    prog = p; gl.useProgram(p);
+    uT = gl.getUniformLocation(p, "t"); uR = gl.getUniformLocation(p, "r"); uM = gl.getUniformLocation(p, "m");
+    return "";
+  }
+
+  function initGL() {
+    vs = gl.createShader(gl.VERTEX_SHADER);
+    gl.shaderSource(vs, VERT); gl.compileShader(vs);
+    const buf = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);   // one big triangle
+    gl.enableVertexAttribArray(0);
+    gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+  }
+
+  // ── Editor ─────────────────────────────────────────────────────────────────
+  const byteLen = (s) => new TextEncoder().encode(s).length;
+  function showBytes() { const n = byteLen(code.value); $("bytes").textContent = n + (n === 1 ? " byte" : " bytes"); }
+  function run() {
+    showBytes();
+    if (!gl) return;
+    const err = compile(code.value);
+    statusEl.classList.toggle("bad", !!err);
+    statusEl.textContent = err
+      ? err + " (Still showing the last version that worked.)"
+      : code.value === SHADERS[current].src ? "Running. " + SHADERS[current].hint : "Running your version.";
+    needsDraw = true;
+  }
+  let deb = 0;
+  code.addEventListener("input", () => { showBytes(); clearTimeout(deb); deb = setTimeout(run, 140); });
+  function load(name) {
+    current = name;
+    document.querySelectorAll("#pick button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.v === name)));
+    code.value = SHADERS[name].src;
+    $("tip").textContent = SHADERS[name].tip; $("tip").classList.remove("gone");
+    run();
+  }
+  $("pick").addEventListener("click", (e) => { const b = e.target.closest("button"); if (b) load(b.dataset.v); });
+  $("reset").addEventListener("click", () => load(current));
+
+  // ── Time and pointer ───────────────────────────────────────────────────────
+  let time = qs.has("t") ? parseFloat(qs.get("t")) : 8, paused = reduced || qs.has("t"), needsDraw = true;
+  let mx = 0.5, my = 0.55, tmx = 0.5, tmy = 0.55, lastInput = -1e9, wander = 0;
+  const fixedM = qs.has("mx") || qs.has("my");
+  if (fixedM) { mx = tmx = parseFloat(qs.get("mx") || "0.5"); my = tmy = parseFloat(qs.get("my") || "0.5"); }
+  const pauseBtn = $("pause");
+  function setPaused(p) { paused = p; pauseBtn.setAttribute("aria-pressed", String(p)); pauseBtn.textContent = p ? "Play" : "Pause"; }
+  setPaused(paused);
+  pauseBtn.addEventListener("click", () => setPaused(!paused));
+
+  function aim(e) {
+    if (fixedM) return;
+    const b = canvas.getBoundingClientRect();
+    tmx = Math.max(0, Math.min(1, (e.clientX - b.left) / b.width));
+    tmy = Math.max(0, Math.min(1, 1 - (e.clientY - b.top) / b.height));
+    lastInput = performance.now();
+    $("tip").classList.add("gone");
+  }
+  canvas.addEventListener("pointermove", aim);
+  canvas.addEventListener("pointerdown", aim);
+
+  function resize() {
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const w = Math.max(1, Math.round(canvas.clientWidth * dpr)), h = Math.max(1, Math.round(canvas.clientHeight * dpr));
+    if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; needsDraw = true; }
+  }
+  let last = performance.now();
+  function frame(now) {
+    const dt = Math.min(0.05, (now - last) / 1000); last = now;
+    if (!paused) { time += dt; needsDraw = true; }
+    if (!fixedM) {
+      if (!paused && now - lastInput > 4000) {
+        // Nobody is steering: drift slowly so the picture keeps changing.
+        wander += dt;
+        tmx = 0.5 + 0.34 * Math.sin(wander * 0.31); tmy = 0.52 + 0.3 * Math.sin(wander * 0.23 + 1.3);
+      }
+      const k = reduced ? 1 : Math.min(1, dt * 6);
+      if (Math.abs(tmx - mx) + Math.abs(tmy - my) > 0.0005) { mx += (tmx - mx) * k; my += (tmy - my) * k; needsDraw = true; }
+    }
+    resize();
+    if (needsDraw && prog) {
+      gl.viewport(0, 0, canvas.width, canvas.height);
+      gl.uniform1f(uT, time); gl.uniform2f(uR, canvas.width, canvas.height); gl.uniform2f(uM, mx, my);
+      gl.drawArrays(gl.TRIANGLES, 0, 3);
+      needsDraw = false;
+    }
+    requestAnimationFrame(frame);
+  }
+
+  // ── How it works ───────────────────────────────────────────────────────────
+  const how = $("how"), howBtn = $("howBtn");
+  howBtn.addEventListener("click", () => { how.hidden = !how.hidden; howBtn.setAttribute("aria-expanded", String(!how.hidden)); });
+  window.addEventListener("keydown", (e) => { if (e.key === "Escape" && !how.hidden) howBtn.click(); });
+  if (qs.get("how")) howBtn.click();
+
+  // ── Start ──────────────────────────────────────────────────────────────────
+  function noGL(why) {
+    gl = null; document.body.classList.add("nogl");
+    statusEl.textContent = why; pauseBtn.disabled = true;
+    $("glNote").textContent = "This browser has WebGL switched off or unavailable, so you are seeing a still picture, not the shader.";
+  }
+  if (gl) {
+    initGL();
+    canvas.addEventListener("webglcontextlost", (e) => { e.preventDefault(); prog = null; statusEl.textContent = "The graphics context was lost. Waiting for it to come back."; });
+    canvas.addEventListener("webglcontextrestored", () => { initGL(); run(); });
+    $("glNote").textContent = reduced
+      ? "Your system asks for reduced motion, so the picture starts paused. Press Play to run it; moving the pointer still redraws it."
+      : "Works anywhere WebGL does, which is nearly every browser. Without it you get a still picture and a note.";
+    load(current);
+    if (qs.get("err")) { code.value = code.value.replace("vec3 c", "vec3 c oops"); run(); }
+    if (!prog) noGL("WebGL started but could not run a shader here, so the picture is a still.");
+    else requestAnimationFrame(frame);
+  } else {
+    code.value = SHADERS[current].src; showBytes();
+    noGL("WebGL is not available, so the code cannot run here. You can still read it.");
+  }
+  if (!gl) {
+    // Without WebGL the pictures cannot change, but the code for each can still be read.
+    load = (name) => { current = name; document.querySelectorAll("#pick button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.v === name))); code.value = SHADERS[name].src; showBytes(); };
+  }
+})();
+</script>
+</body>
+</html>

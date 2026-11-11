@@ -1,0 +1,819 @@
+@import "tailwindcss";
+
+/* ─── Tokens ────────────────────────────────────────────────────────────────
+   Concept: a stairwell painted with a 1970s supergraphic. Every colour is a
+   paint on that wall. See .design/DIRECTION.md for the reasoning. */
+
+@theme {
+  --color-*: initial;
+  --color-persimmon: #f2662a; /* the painted wall */
+  --color-umber: #241006; /* burnt-umber paint: text, outer band */
+  --color-brick: #b32317; /* middle band; hover and current state */
+  --color-plaster: #fbe6cc; /* the plaster between stripes */
+  --color-plaster-2: #f3d2ab; /* hairlines and pressed states on plaster */
+  --color-ink-2: #5a3a26; /* secondary text on plaster only (8.4:1) */
+  --color-transparent: transparent;
+  --color-current: currentColor;
+
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ease-paint: cubic-bezier(0.5, 0, 0.2, 1);
+}
+
+@theme inline {
+  --font-display: var(--font-anybody), "Arial Black", "Helvetica Neue", Arial, system-ui, sans-serif;
+  --font-sans: var(--font-hanken), system-ui, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Liberation Sans", sans-serif;
+}
+
+:root {
+  color-scheme: light;
+
+  /* Layout: a 12-column page grid from 1024px up */
+  --max: 1440px;
+  --pad: clamp(16px, 4vw, 56px);
+  --gutter: 24px;
+
+  /* The stripe: three bands and two gaps */
+  --band: 18px;
+  --gap: 8px;
+  --step: calc(var(--band) + var(--gap));
+  --T: calc(var(--band) * 3 + var(--gap) * 2);
+  --R: clamp(112px, 18svh, 168px);
+  --stripe-inset: var(--pad);
+  --rail-gap: 56px;
+  --rail-clear: calc(var(--stripe-inset) + var(--T) + var(--rail-gap));
+  --b3: var(--color-plaster);
+
+  /* Type scale */
+  --t-display: min(clamp(3.25rem, 0.6rem + 12.2vw, 13.5rem), 22svh);
+  --t-h2: clamp(2.5rem, 1.2rem + 4.2vw, 5.5rem);
+  --t-h3: clamp(1.6rem, 1.15rem + 1.5vw, 2.4rem);
+  --t-lead: clamp(1.25rem, 1.05rem + 0.8vw, 1.75rem);
+  --t-lead-hero: clamp(1.375rem, 1.05rem + 1.1vw, 2rem);
+  --t-body: 1.1875rem;
+  --t-ui: 1.0625rem;
+  --t-small: 0.9375rem;
+  --t-meta: 0.8125rem;
+}
+
+@media (max-width: 1279px) {
+  :root {
+    --band: 14px;
+    --gap: 6px;
+    --R: clamp(96px, 14svh, 132px);
+    --rail-gap: 40px;
+  }
+}
+
+@media (max-width: 767px) {
+  :root {
+    --band: 10px;
+    --gap: 5px;
+    --R: 76px;
+    --stripe-inset: 0px;
+    --rail-gap: 16px;
+  }
+}
+
+/* ─── Base ──────────────────────────────────────────────────────────────── */
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
+body {
+  background: var(--color-umber);
+  color: var(--color-umber);
+  font-family: var(--font-sans);
+  font-size: var(--t-body);
+  line-height: 1.55;
+  overflow-x: clip;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+::selection {
+  background: var(--color-brick);
+  color: var(--color-plaster);
+}
+
+/* The focus ring is painted like the stripe: a plaster band inside an umber one,
+   so it reads on persimmon, plaster and umber alike. */
+:focus-visible {
+  outline: 3px solid var(--color-umber);
+  outline-offset: 3px;
+  box-shadow: 0 0 0 3px var(--color-plaster);
+}
+
+.on-umber :focus-visible {
+  outline-color: var(--color-plaster);
+  box-shadow: 0 0 0 3px var(--color-umber);
+}
+
+[id] {
+  scroll-margin-top: 24px;
+}
+
+/* ─── Type ──────────────────────────────────────────────────────────────── */
+
+@layer components {
+  .type-display {
+    font-family: var(--font-display);
+    font-weight: 900;
+    font-variation-settings: "wdth" 150;
+    font-size: var(--t-display);
+    line-height: 0.86;
+    letter-spacing: -0.035em;
+  }
+
+  .type-h2 {
+    font-family: var(--font-display);
+    font-weight: 900;
+    font-variation-settings: "wdth" 130;
+    font-size: var(--t-h2);
+    line-height: 0.92;
+    letter-spacing: -0.03em;
+    text-wrap: balance;
+  }
+
+  .type-h3 {
+    font-family: var(--font-display);
+    font-weight: 850;
+    font-variation-settings: "wdth" 120;
+    font-size: var(--t-h3);
+    line-height: 1;
+    letter-spacing: -0.02em;
+    text-wrap: balance;
+  }
+
+  .type-lead {
+    font-size: var(--t-lead);
+    font-weight: 500;
+    line-height: 1.28;
+    letter-spacing: -0.01em;
+    text-wrap: pretty;
+  }
+
+  .type-meta {
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-variation-settings: "wdth" 112;
+    font-size: var(--t-meta);
+    line-height: 1.2;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  .type-sub {
+    font-family: var(--font-display);
+    font-weight: 800;
+    font-variation-settings: "wdth" 125;
+    font-size: 1.1875rem;
+    line-height: 1.2;
+    letter-spacing: -0.01em;
+  }
+
+  .prose-body {
+    font-size: var(--t-body);
+    line-height: 1.6;
+    text-wrap: pretty;
+    max-width: 34em;
+  }
+
+  /* Underlined text links: a painted underline that turns brick. */
+  .link {
+    text-decoration-line: underline;
+    text-decoration-thickness: 2px;
+    text-underline-offset: 0.22em;
+    transition: color 160ms var(--ease-out), text-decoration-color 160ms var(--ease-out);
+  }
+  .link:hover {
+    color: var(--color-brick);
+  }
+  .on-persimmon .link:hover,
+  .on-umber .link:hover {
+    color: inherit;
+    text-decoration-thickness: 4px;
+  }
+
+  /* The one button shape: a pill, like the rounded end of a painted stripe. */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.6em;
+    min-height: 52px;
+    padding: 0 1.5rem;
+    border-radius: 999px;
+    border: 2px solid var(--color-umber);
+    background: var(--color-umber);
+    color: var(--color-plaster);
+    font-weight: 700;
+    font-size: var(--t-ui);
+    line-height: 1;
+    white-space: nowrap;
+    transition: background-color 160ms var(--ease-out), color 160ms var(--ease-out), transform 160ms var(--ease-out);
+  }
+  .btn:hover {
+    background: var(--color-brick);
+    border-color: var(--color-brick);
+  }
+  .btn:active {
+    transform: translateY(1px);
+  }
+  .btn .arrow {
+    transition: transform 200ms var(--ease-out);
+  }
+  .btn:hover .arrow {
+    transform: translateY(3px);
+  }
+
+  .btn:disabled {
+    cursor: progress;
+    opacity: 0.75;
+  }
+
+  /* Form fields: an umber outline on the plaster, square-cornered like the covers. */
+  .field {
+    display: block;
+    width: 100%;
+    min-height: 52px;
+    padding: 0.8rem 1rem;
+    border: 2px solid var(--color-umber);
+    border-radius: 4px;
+    background: var(--color-plaster);
+    color: var(--color-umber);
+    font: inherit;
+    font-size: var(--t-ui); /* 17px: phones don't zoom in on focus */
+    line-height: 1.35;
+    transition: border-color 160ms var(--ease-out), box-shadow 160ms var(--ease-out);
+  }
+  .field::placeholder {
+    color: var(--color-ink-2);
+  }
+  .field:hover {
+    box-shadow: inset 0 0 0 1px var(--color-umber);
+  }
+  .field[aria-invalid="true"] {
+    border-color: var(--color-brick);
+    box-shadow: inset 0 0 0 1px var(--color-brick);
+  }
+  textarea.field {
+    min-height: 9rem;
+    resize: vertical;
+  }
+  .field-error {
+    color: var(--color-brick);
+    font-size: var(--t-small);
+    font-weight: 600;
+    line-height: 1.35;
+  }
+
+  .skip-link {
+    position: absolute;
+    left: 16px;
+    top: -100px;
+    z-index: 50;
+    background: var(--color-umber);
+    color: var(--color-plaster);
+    padding: 12px 18px;
+    border-radius: 999px;
+    font-weight: 700;
+  }
+  .skip-link:focus-visible {
+    top: 16px;
+  }
+
+  .wrap {
+    width: 100%;
+    max-width: var(--max);
+    margin-inline: auto;
+    padding-inline: var(--pad);
+  }
+  .rail-right {
+    padding-right: var(--rail-clear);
+  }
+  .rail-left {
+    padding-left: var(--rail-clear);
+  }
+
+  /* From 1024px every section sits on one 12-column page grid. The rail lives
+     in column 12 (or 1); the content "lane" takes the other eleven, and its
+     children align to the same columns through subgrid. */
+  @media (min-width: 1024px) {
+    .page-grid {
+      display: grid;
+      grid-template-columns: repeat(12, minmax(0, 1fr));
+      column-gap: var(--gutter);
+    }
+    .rail-right.page-grid,
+    .rail-left.page-grid {
+      padding-inline: var(--pad);
+    }
+    .rail-right.page-grid > .lane {
+      grid-column: 1 / span 11;
+    }
+    .rail-left.page-grid > .lane {
+      grid-column: 2 / span 11;
+    }
+    .lane {
+      display: grid;
+      grid-template-columns: subgrid;
+      align-content: start;
+    }
+    .lane > * {
+      grid-column: 1 / -1;
+    }
+  }
+}
+
+/* ─── Hero ──────────────────────────────────────────────────────────────── */
+
+.hero {
+  --hero-drop: calc(var(--R) + 40px);
+  padding-top: 112px;
+}
+
+.hero-inner {
+  container-type: inline-size;
+}
+.hero-name {
+  /* Anybody at wdth 150, weight 900 runs ~1.04em per character. */
+  font-size: min(var(--t-display), calc(100cqi / (var(--chars) * 1.04)));
+}
+.hero-lede {
+  font-size: var(--t-lead-hero);
+}
+
+/* Your photo, set into the first line of the name like a painted pill:
+   cap height tall, ringed by the stripe's three bands. */
+.hero-photo {
+  position: relative;
+  display: inline-block;
+  vertical-align: baseline;
+  width: 0.98em;
+  height: 0.7em;
+  margin-left: 0.2em;
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--color-plaster);
+  box-shadow:
+    0 0 0 0.028em var(--color-plaster),
+    0 0 0 0.046em var(--color-persimmon),
+    0 0 0 0.074em var(--color-brick),
+    0 0 0 0.092em var(--color-persimmon),
+    0 0 0 0.12em var(--color-umber);
+}
+/* Lean in on the face: the crop centres on the photo's focus point. */
+.hero-photo img {
+  transform: translateX(calc(50% - var(--fx, 50%))) scale(1.3);
+  transform-origin: var(--fx, 50%) var(--fy, 40%);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .hero-photo {
+    animation: photo-in 900ms var(--ease-out) 350ms both;
+  }
+}
+@keyframes photo-in {
+  from {
+    transform: scale(0.55) rotate(-6deg);
+  }
+  to {
+    transform: none;
+  }
+}
+@media (forced-colors: active) {
+  .hero-photo {
+    border: 0.04em solid CanvasText;
+  }
+}
+
+/* The floor holds the stripe piece; the piece is as tall as the floor. */
+.hero-floor {
+  position: relative;
+}
+
+@media (min-width: 1024px) {
+  /* Content centres in the wall above; the directory hangs inside the U,
+     and the floor grows if the directory needs a second row. */
+  .hero-body {
+    margin-block: auto;
+  }
+  .hero-floor {
+    min-height: var(--hero-drop);
+    padding-top: calc(var(--T) + 28px);
+    padding-bottom: 32px;
+  }
+  .stripe--hero {
+    top: 0;
+  }
+}
+
+@media (min-width: 1024px) and (max-height: 760px) {
+  .hero {
+    padding-top: 92px;
+  }
+  .hero-name {
+    font-size: min(var(--t-display), calc(100cqi / (var(--chars) * 1.04)), 19svh);
+  }
+}
+
+@media (max-width: 1023px) {
+  .hero {
+    padding-top: 156px;
+  }
+  /* Narrow screens: the directory sits above the run; the floor fills the
+     rest of the wall and the stripe sits at its foot. */
+  .hero-floor {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    margin-top: 56px;
+    padding-bottom: calc(var(--hero-drop) + 32px);
+  }
+}
+
+@media (max-width: 639px) {
+  .hero {
+    padding-top: 104px;
+  }
+  .hero-name {
+    font-variation-settings: "wdth" 125;
+    letter-spacing: -0.03em;
+    font-size: calc(100cqi / (var(--chars) * 0.87));
+  }
+}
+
+/* ─── The stripe ────────────────────────────────────────────────────────────
+   One three-band stripe switchbacks down the page. Each section owns one or
+   two "L" pieces: a box with two borders and one rounded corner. The bands are
+   three nested boxes whose radii step down concentrically. Pieces overlap on
+   their straight runs, so joins are invisible. Fully painted without JS. */
+
+.stripe-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.stripe-frame {
+  position: relative;
+  height: 100%;
+  max-width: var(--max);
+  margin-inline: auto;
+}
+
+.stripe {
+  position: absolute;
+  /* Bands run 20px past the piece's open ends and are cut here, so their
+     antialiased open edges (a faint hairline in Chrome) are never painted. */
+  overflow: clip;
+}
+
+.stripe > i {
+  position: absolute;
+  inset: 0;
+  /* Only the two painted sides take the band colour: a coloured zero-width
+     side next to a rounded corner leaves a faint hairline in Chrome. */
+  border: 0 solid transparent;
+  /* This band's corner radius, and the strip its curve occupies. */
+  --Ri: calc(var(--R) - var(--i) * var(--step));
+  --strip: calc(100% - var(--Ri) - var(--band));
+}
+
+.stripe[data-corner="tr"] > i {
+  bottom: -20px;
+  left: -20px;
+  border-top-color: var(--c);
+  border-right-color: var(--c);
+  top: calc(var(--i) * var(--step));
+  right: calc(var(--i) * var(--step));
+  border-top-width: var(--band);
+  border-right-width: var(--band);
+  border-top-right-radius: calc(var(--R) - var(--i) * var(--step));
+}
+.stripe[data-corner="br"] > i {
+  top: -20px;
+  left: -20px;
+  border-bottom-color: var(--c);
+  border-right-color: var(--c);
+  bottom: calc(var(--i) * var(--step));
+  right: calc(var(--i) * var(--step));
+  border-bottom-width: var(--band);
+  border-right-width: var(--band);
+  border-bottom-right-radius: calc(var(--R) - var(--i) * var(--step));
+}
+.stripe[data-corner="bl"] > i {
+  top: -20px;
+  right: -20px;
+  border-bottom-color: var(--c);
+  border-left-color: var(--c);
+  bottom: calc(var(--i) * var(--step));
+  left: calc(var(--i) * var(--step));
+  border-bottom-width: var(--band);
+  border-left-width: var(--band);
+  border-bottom-left-radius: calc(var(--R) - var(--i) * var(--step));
+}
+.stripe[data-corner="tl"] > i {
+  bottom: -20px;
+  right: -20px;
+  border-top-color: var(--c);
+  border-left-color: var(--c);
+  top: calc(var(--i) * var(--step));
+  left: calc(var(--i) * var(--step));
+  border-top-width: var(--band);
+  border-left-width: var(--band);
+  border-top-left-radius: calc(var(--R) - var(--i) * var(--step));
+}
+
+/* Where each piece sits, in the section's frame. */
+.stripe--hero {
+  left: calc(50% - 50vw - 8px);
+  right: var(--stripe-inset);
+  bottom: 0;
+  min-height: var(--hero-drop);
+}
+.stripe--rail-right-turn-left {
+  /* down the right rail, then west along the bottom into the next section */
+  left: calc(var(--stripe-inset) + var(--R));
+  right: var(--stripe-inset);
+  top: -1px; /* overlap the piece above: no hairline seam */
+  bottom: calc(-1 * var(--T));
+}
+.stripe--in-from-right-down-left {
+  /* west along the top, then down the left rail */
+  left: var(--stripe-inset);
+  right: calc(var(--stripe-inset) + var(--R));
+  top: 0;
+  bottom: calc(50% - 1px);
+}
+.stripe--down-left-out-right {
+  /* down the left rail, then east along the bottom into the next section */
+  left: var(--stripe-inset);
+  right: calc(var(--stripe-inset) + var(--R));
+  top: 50%;
+  bottom: calc(-1 * var(--T));
+}
+.stripe--in-from-left-down-right {
+  /* east along the top, then down the right rail (continues below) */
+  left: calc(var(--stripe-inset) + var(--R));
+  right: var(--stripe-inset);
+  top: 0;
+  bottom: 0;
+}
+.stripe--exit-left {
+  /* down the right rail, then west and off the page */
+  left: calc(50% - 50vw - 8px);
+  right: var(--stripe-inset);
+  top: -1px;
+  bottom: var(--exit-at);
+}
+
+/* ─── The signature: the stripe paints itself in ──────────────────────────── */
+
+@keyframes paint-hero {
+  0% {
+    clip-path: inset(0 100% var(--strip) 0);
+  }
+  74% {
+    clip-path: inset(0 0 var(--strip) 0);
+  }
+  100% {
+    clip-path: inset(0 0 0 0);
+  }
+}
+
+/* south, then west */
+@keyframes paint-down-then-west {
+  0% {
+    clip-path: inset(0 0 100% var(--strip));
+  }
+  78% {
+    clip-path: inset(0 0 0 var(--strip));
+  }
+  100% {
+    clip-path: inset(0 0 0 0);
+  }
+}
+
+/* west, then south */
+@keyframes paint-west-then-down {
+  0% {
+    clip-path: inset(0 0 var(--strip) 100%);
+  }
+  35% {
+    clip-path: inset(0 0 var(--strip) 0);
+  }
+  100% {
+    clip-path: inset(0 0 0 0);
+  }
+}
+
+/* south, then east */
+@keyframes paint-down-then-east {
+  0% {
+    clip-path: inset(0 var(--strip) 100% 0);
+  }
+  65% {
+    clip-path: inset(0 var(--strip) 0 0);
+  }
+  100% {
+    clip-path: inset(0 0 0 0);
+  }
+}
+
+/* east, then south */
+@keyframes paint-east-then-down {
+  0% {
+    clip-path: inset(0 100% var(--strip) 0);
+  }
+  35% {
+    clip-path: inset(0 0 var(--strip) 0);
+  }
+  100% {
+    clip-path: inset(0 0 0 0);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .stripe--hero > i {
+    animation-name: paint-hero;
+    animation-duration: 1500ms;
+    animation-timing-function: var(--ease-paint);
+    animation-fill-mode: both;
+    animation-delay: calc(250ms + var(--i) * 110ms);
+  }
+}
+
+@supports (animation-timeline: view()) {
+  @media (prefers-reduced-motion: no-preference) {
+    .stripe[data-paint] > i {
+      animation-duration: auto;
+      animation-timing-function: linear;
+      animation-fill-mode: both;
+      animation-timeline: view();
+      /* The paint head rides near the bottom of the screen, ahead of the reader. */
+      animation-range: cover 12vh cover calc(100% - 88vh);
+    }
+    .stripe[data-paint="down-then-west"] > i {
+      animation-name: paint-down-then-west;
+    }
+    .stripe[data-paint="west-then-down"] > i {
+      animation-name: paint-west-then-down;
+    }
+    .stripe[data-paint="down-then-east"] > i {
+      animation-name: paint-down-then-east;
+    }
+    .stripe[data-paint="east-then-down"] > i {
+      animation-name: paint-east-then-down;
+    }
+    /* The last piece must finish by the time its bottom edge is on screen.
+       (Written in cover terms: the build rewrites "entry 100%" incorrectly.) */
+    .stripe--exit-left[data-paint] > i {
+      animation-range: cover 8vh cover calc(100% - 100vh);
+    }
+  }
+}
+
+/* ─── Contact: the address is sized to fit its column, whatever its length ── */
+
+.email-fit {
+  container-type: inline-size;
+}
+.email {
+  font-variation-settings: "wdth" 112;
+  /* Anybody at wdth 112, weight 900 averages ~0.74em per character. */
+  font-size: clamp(1.25rem, calc(100cqi / (var(--chars) * 0.74)), var(--t-h2));
+}
+@container (min-width: 900px) {
+  .email {
+    font-size: clamp(1.25rem, calc(76cqi / (var(--chars) * 0.74)), var(--t-h2));
+  }
+}
+
+/* ─── /free: the offer's title fits its box at any width ────────────────────── */
+
+.offer-title {
+  font-family: var(--font-display);
+  font-weight: 900;
+  font-variation-settings: "wdth" 130;
+  /* Anybody at wdth 130, weight 900 runs ~0.92em per character. */
+  font-size: min(clamp(2.5rem, 0.9rem + 6.4vw, 7.5rem), calc(100cqi / (var(--chars) * 0.92)));
+  line-height: 0.9;
+  letter-spacing: -0.03em;
+  text-wrap: balance;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .lead-sent {
+    animation: lead-sent-in 520ms var(--ease-out) both;
+  }
+}
+@keyframes lead-sent-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+}
+
+/* ─── Toolkit index: words stretch along Anybody's width axis ─────────────── */
+
+.index-name {
+  font-family: var(--font-display);
+  font-weight: 850;
+  font-size: var(--t-lead-hero);
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+  font-variation-settings: "wdth" 100;
+  transition: font-variation-settings 420ms var(--ease-out), color 160ms var(--ease-out);
+}
+.index-row:hover .index-name,
+.index-row:focus-within .index-name {
+  font-variation-settings: "wdth" 150;
+  color: var(--color-brick);
+}
+.index-leader {
+  background-image: radial-gradient(circle, var(--color-umber) 1.2px, transparent 1.6px);
+  background-size: 9px 6px;
+  background-repeat: round no-repeat;
+  background-position: left bottom 0.32em;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
+
+/* Windows High Contrast: keep the bands and controls visible. */
+@media (forced-colors: active) {
+  .stripe > i {
+    --c: CanvasText !important;
+  }
+  .cover-number,
+  .portrait-monogram {
+    fill: CanvasText;
+  }
+  .btn {
+    border-color: ButtonText;
+  }
+}
+
+/* ─── Labs: a lab's cover gets a painted frame ───────────────────────────────
+   Hover or focus paints the stripe's bands round the cover, innermost first:
+   persimmon, brick, umber, with plaster between, as on the stairwell wall. */
+
+.lab-cover {
+  /* A hairline edge, so light covers don't melt into the plaster. */
+  outline: 2px solid var(--color-umber);
+  outline-offset: -2px;
+  box-shadow:
+    0 0 0 0 var(--color-plaster),
+    0 0 0 0 var(--color-persimmon),
+    0 0 0 0 var(--color-plaster),
+    0 0 0 0 var(--color-brick),
+    0 0 0 0 var(--color-plaster),
+    0 0 0 0 var(--color-umber);
+  transition: box-shadow 420ms var(--ease-out);
+}
+.lab-card:hover .lab-cover,
+.lab-card:focus-visible .lab-cover {
+  /* A hairline edge, so light covers don't melt into the plaster. */
+  outline: 2px solid var(--color-umber);
+  outline-offset: -2px;
+  box-shadow:
+    0 0 0 5px var(--color-plaster),
+    0 0 0 11px var(--color-persimmon),
+    0 0 0 15px var(--color-plaster),
+    0 0 0 21px var(--color-brick),
+    0 0 0 25px var(--color-plaster),
+    0 0 0 31px var(--color-umber);
+}
+/* The painted frame is the focus ring here. */
+.lab-card:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+@media (forced-colors: active) {
+  .lab-card:focus-visible .lab-cover {
+    outline: 3px solid CanvasText;
+    outline-offset: 6px;
+  }
+}
+
+/* The lab bar's About panel. */
+.lab-about[open] > summary {
+  background: var(--color-plaster);
+  color: var(--color-umber);
+}

@@ -1,0 +1,425 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Supergraphic</title>
+<link rel="stylesheet" href="../kit.css">
+<style>
+  body { overflow: hidden; background: var(--ground, var(--persimmon)); transition: background-color 300ms var(--ease); }
+  canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; cursor: crosshair; }
+
+  .hint {
+    position: fixed; left: 16px; top: 14px; margin: 0; max-width: 34ch;
+    font-family: var(--display); font-weight: 800; font-variation-settings: "wdth" 120;
+    font-size: 17px; line-height: 1.15; letter-spacing: -0.01em;
+    color: var(--hint, var(--umber));
+    pointer-events: none; transition: opacity 500ms var(--ease);
+  }
+  .hint.gone { opacity: 0; }
+
+  .dock { position: fixed; left: 16px; bottom: 16px; width: min(360px, calc(100% - 32px)); display: grid; gap: 12px; }
+  .dock h2 { margin: 0; }
+  .swatches { display: flex; gap: 8px; flex-wrap: wrap; }
+  .swatch {
+    width: 44px; height: 44px; padding: 0; border-radius: 50%; border: 2px solid var(--umber);
+    cursor: pointer; position: relative; overflow: hidden;
+    transition: transform 140ms var(--ease);
+  }
+  .swatch:hover { transform: translateY(-2px); }
+  .swatch[aria-pressed="true"] { box-shadow: 0 0 0 3px var(--plaster), 0 0 0 5px var(--umber); }
+  .swatch i { position: absolute; left: 0; right: 0; }
+  .sliders { display: grid; grid-template-columns: auto 1fr auto; align-items: center; column-gap: 10px; row-gap: 2px; }
+  .sliders output { font-variant-numeric: tabular-nums; font-weight: 700; font-size: 13px; min-width: 3ch; text-align: right; }
+  .actions { display: flex; flex-wrap: wrap; gap: 8px; }
+  .collapse { display: none; }
+
+  @media (max-width: 560px) {
+    .dock { left: 8px; right: 8px; bottom: 8px; width: auto; }
+    .dock.closed .body { display: none; }
+    .collapse { display: inline-flex; }
+    .head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .hint { font-size: 15px; }
+  }
+</style>
+</head>
+<body>
+<canvas id="c" aria-label="Painting canvas. Drag to paint a three-band stripe."></canvas>
+<p class="hint" id="hint">Drag to paint a stripe. It turns the corners for you.</p>
+
+<section class="dock panel" id="dock" aria-label="Controls">
+  <div class="head">
+    <h2 class="label">Colourway · <span id="palName">Stairwell</span></h2>
+    <button class="btn collapse" id="collapse" aria-expanded="true">Hide</button>
+  </div>
+  <div class="body" style="display:grid; gap:12px">
+    <div class="swatches" id="swatches" role="group" aria-label="Colourway"></div>
+    <div class="sliders">
+      <label class="label" for="bands">Bands</label>
+      <input type="range" id="bands" min="2" max="5" step="1" value="3">
+      <output for="bands" id="bandsOut">3</output>
+      <label class="label" for="width">Width</label>
+      <input type="range" id="width" min="6" max="40" step="1" value="20">
+      <output for="width" id="widthOut">20</output>
+      <label class="label" for="radius">Corners</label>
+      <input type="range" id="radius" min="0" max="240" step="2" value="110">
+      <output for="radius" id="radiusOut">110</output>
+    </div>
+    <div class="actions">
+      <button class="btn solid" id="shuffle">Shuffle</button>
+      <button class="btn" id="undo">Undo</button>
+      <button class="btn" id="clear">Clear</button>
+      <button class="btn" id="save">Save PNG</button>
+    </div>
+  </div>
+</section>
+
+<script>
+(() => {
+  const PALETTES = [
+    { name: "Stairwell", ground: "#f2662a", hint: "#241006", bands: ["#241006", "#b32317", "#fbe6cc", "#f6b43c", "#5a3a26"] },
+    { name: "Pool",      ground: "#1f6b70", hint: "#fbe6cc", bands: ["#f4c04e", "#f2883b", "#fbe6cc", "#e2553b", "#0f3b3e"] },
+    { name: "Garage",    ground: "#ece0c8", hint: "#3b2a20", bands: ["#3b2a20", "#c8553d", "#f2a541", "#7c9c8a", "#e7c79e"] },
+    { name: "Avocado",   ground: "#66733a", hint: "#f2e3c6", bands: ["#3a2a14", "#d9a441", "#f2e3c6", "#b4532a", "#9aa65a"] },
+    { name: "Disco",     ground: "#2b1b3d", hint: "#ffe6a7", bands: ["#ff5e5b", "#ffa94d", "#ffe6a7", "#d1477a", "#7a5cd6"] },
+  ];
+
+  const canvas = document.getElementById("c");
+  const ctx = canvas.getContext("2d");
+  const $ = (id) => document.getElementById(id);
+  const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  let W = 0, H = 0, dpr = 1;
+  let palette = 0;
+  let strokes = [];          // committed stripes
+  let live = null;           // the stripe under the pointer
+  const history = [];        // snapshots for undo
+  const settings = { bands: 3, width: 20, radius: 110 };
+
+  // ── Geometry ───────────────────────────────────────────────────────────────
+  // A stripe is an axis-aligned centre line. Each band is that line offset to
+  // the left (+) or right (−) of travel, with concentric rounded corners.
+
+  const sub = (a, b) => [a[0] - b[0], a[1] - b[1]];
+  const len = (v) => Math.hypot(v[0], v[1]);
+  const unit = (a, b) => { const d = sub(b, a), l = len(d) || 1; return [d[0] / l, d[1] / l]; };
+  const leftOf = (d) => [d[1], -d[0]]; // screen coords, y down
+
+  function clean(pts) {
+    const out = [pts[0]];
+    for (let i = 1; i < pts.length; i++) {
+      if (len(sub(pts[i], out[out.length - 1])) >= 1) out.push(pts[i]);
+    }
+    // Drop vertices that don't turn (collinear runs).
+    for (let i = out.length - 2; i >= 1; i--) {
+      const a = unit(out[i - 1], out[i]), b = unit(out[i], out[i + 1]);
+      if (Math.abs(a[0] * b[1] - a[1] * b[0]) < 1e-6 && a[0] * b[0] + a[1] * b[1] > 0) out.splice(i, 1);
+    }
+    return out;
+  }
+
+  /** One band of a stripe: its vertices, corner radii and total length. */
+  function bandGeometry(pts, radius, offset) {
+    const n = pts.length;
+    const dirs = [];
+    for (let i = 0; i < n - 1; i++) dirs.push(unit(pts[i], pts[i + 1]));
+    const segLen = dirs.map((_, i) => len(sub(pts[i + 1], pts[i])));
+
+    const shifted = pts.map((p, i) => {
+      const nIn = leftOf(dirs[Math.max(0, i - 1)]);
+      const nOut = leftOf(dirs[Math.min(dirs.length - 1, i)]);
+      if (i === 0) return [p[0] + nOut[0] * offset, p[1] + nOut[1] * offset];
+      if (i === n - 1) return [p[0] + nIn[0] * offset, p[1] + nIn[1] * offset];
+      return [p[0] + (nIn[0] + nOut[0]) * offset, p[1] + (nIn[1] + nOut[1]) * offset];
+    });
+    const shiftLen = shifted.slice(1).map((p, i) => len(sub(p, shifted[i])));
+
+    const radii = [0];
+    let total = shiftLen.reduce((a, b) => a + b, 0);
+    for (let i = 1; i < n - 1; i++) {
+      const dIn = dirs[i - 1], dOut = dirs[i];
+      const right = dIn[0] * dOut[1] - dIn[1] * dOut[0] > 0;
+      const avail = (k, lengths) => (k === 0 || k === lengths.length - 1 ? lengths[k] : lengths[k] / 2);
+      const rc = Math.min(radius, avail(i - 1, segLen), avail(i, segLen));
+      let r = right ? rc + offset : rc - offset;
+      r = Math.max(0, Math.min(r, avail(i - 1, shiftLen), avail(i, shiftLen)));
+      radii.push(r);
+      total += r * (Math.PI / 2 - 2);
+    }
+    return { shifted, radii, total };
+  }
+
+  function bandOffsets(s) {
+    const step = s.width * 1.45; // band + gap
+    return Array.from({ length: s.bands }, (_, i) => ((s.bands - 1) / 2 - i) * step);
+  }
+
+  // ── Drawing ────────────────────────────────────────────────────────────────
+
+  function drawStroke(s, t = 1) {
+    const pts = clean(s.points);
+    if (pts.length < 2) return;
+    const colors = PALETTES[palette].bands;
+    const offsets = bandOffsets(s);
+    ctx.lineWidth = s.width;
+    ctx.lineCap = "butt";
+    ctx.lineJoin = "miter";
+    offsets.forEach((o, i) => {
+      const g = bandGeometry(pts, s.radius, o);
+      // Bands are painted one after another, each a beat behind the last.
+      const lag = 0.12 * i;
+      const tb = Math.max(0, Math.min(1, (t - lag) / (1 - 0.12 * (s.bands - 1))));
+      if (tb <= 0) return;
+      ctx.strokeStyle = colors[(i + s.rot) % colors.length];
+      ctx.beginPath();
+      ctx.moveTo(g.shifted[0][0], g.shifted[0][1]);
+      for (let k = 1; k < g.shifted.length - 1; k++) {
+        const v = g.shifted[k], next = g.shifted[k + 1];
+        ctx.arcTo(v[0], v[1], next[0], next[1], g.radii[k]);
+      }
+      const end = g.shifted[g.shifted.length - 1];
+      ctx.lineTo(end[0], end[1]);
+      if (tb < 1) {
+        ctx.setLineDash([g.total * tb, g.total + 10]);
+      } else {
+        ctx.setLineDash([]);
+      }
+      ctx.stroke();
+    });
+    ctx.setLineDash([]);
+  }
+
+  let animating = false;
+  function render() {
+    const now = performance.now();
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.fillStyle = PALETTES[palette].ground;
+    ctx.fillRect(0, 0, W, H);
+    let busy = false;
+    for (const s of strokes) {
+      let t = 1;
+      if (s.born) {
+        t = Math.min(1, (now - s.born) / s.dur);
+        if (t < 1) busy = true; else s.born = 0;
+        t = ease(t);
+      }
+      drawStroke(s, t);
+    }
+    if (live) drawStroke(live);
+    animating = busy;
+    if (busy) requestAnimationFrame(render);
+  }
+  const ease = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
+  const kick = () => { if (!animating) requestAnimationFrame(render); };
+
+  function resize() {
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    W = innerWidth; H = innerHeight;
+    canvas.width = Math.round(W * dpr);
+    canvas.height = Math.round(H * dpr);
+    render();
+  }
+
+  // ── Painting with the pointer ──────────────────────────────────────────────
+  // The stroke follows one axis at a time. Move far enough across it and the
+  // stripe turns a corner where you turned.
+
+  let axis = null;
+  function pointerPos(e) { return [e.clientX, e.clientY]; }
+
+  canvas.addEventListener("pointerdown", (e) => {
+    if (e.button !== 0) return;
+    canvas.setPointerCapture(e.pointerId);
+    const p = pointerPos(e);
+    live = { points: [p, p], bands: settings.bands, width: settings.width, radius: settings.radius, rot: 0 };
+    axis = null;
+    $("hint").classList.add("gone");
+  });
+
+  canvas.addEventListener("pointermove", (e) => {
+    if (!live) return;
+    const q = pointerPos(e);
+    const pts = live.points;
+    const last = pts[pts.length - 2];
+    if (!axis) {
+      if (len(sub(q, last)) < 10) return;
+      axis = Math.abs(q[0] - last[0]) >= Math.abs(q[1] - last[1]) ? "h" : "v";
+    }
+    const turnAt = Math.max(28, (live.width * 1.45 * live.bands) * 0.45);
+    const dev = axis === "h" ? q[1] - last[1] : q[0] - last[0];
+    const along = axis === "h" ? Math.abs(q[0] - last[0]) : Math.abs(q[1] - last[1]);
+    if (Math.abs(dev) > turnAt) {
+      if (pts.length === 2 && along < turnAt) {
+        axis = axis === "h" ? "v" : "h"; // changed their mind about the first direction
+      } else {
+        pts[pts.length - 1] = axis === "h" ? [q[0], last[1]] : [last[0], q[1]];
+        pts.push(pts[pts.length - 1]);
+        axis = axis === "h" ? "v" : "h";
+      }
+    }
+    const from = pts[pts.length - 2];
+    pts[pts.length - 1] = axis === "h" ? [q[0], from[1]] : [from[0], q[1]];
+    kick();
+  });
+
+  function endStroke() {
+    if (!live) return;
+    const pts = clean(live.points);
+    if (pts.length >= 2 && len(sub(pts[pts.length - 1], pts[0])) > 12) {
+      snapshot();
+      strokes.push({ ...live, points: pts });
+    }
+    live = null;
+    kick();
+  }
+  canvas.addEventListener("pointerup", endStroke);
+  canvas.addEventListener("pointercancel", endStroke);
+
+  // ── Compositions ───────────────────────────────────────────────────────────
+  // Shuffle builds a few stripes that enter from one edge, turn two or three
+  // corners on a coarse grid, and leave by another.
+
+  function rand(a, b) { return a + Math.random() * (b - a); }
+  function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+
+  function composition() {
+    const grid = Math.max(40, Math.round(Math.min(W, H) / 14));
+    const snap = (v) => Math.round(v / grid) * grid;
+    const count = W < 600 ? 3 : Math.floor(rand(3, 5));
+    const out = [];
+    for (let s = 0; s < count; s++) {
+      const bands = pick([3, 3, 3, 4, 2, 5]);
+      const width = Math.round(rand(12, 26) * (W < 600 ? 0.75 : 1));
+      const margin = 160;
+      const edge = pick(["left", "top", "right", "bottom"]);
+      let p, dir;
+      if (edge === "left") { p = [-margin, snap(rand(0.15, 0.85) * H)]; dir = [1, 0]; }
+      if (edge === "right") { p = [W + margin, snap(rand(0.15, 0.85) * H)]; dir = [-1, 0]; }
+      if (edge === "top") { p = [snap(rand(0.15, 0.85) * W), -margin]; dir = [0, 1]; }
+      if (edge === "bottom") { p = [snap(rand(0.15, 0.85) * W), H + margin]; dir = [0, -1]; }
+      const points = [p];
+      const turns = Math.floor(rand(1, 4));
+      for (let t = 0; t < turns; t++) {
+        // Travel into the canvas, to a grid line inside it.
+        const inside = dir[0] !== 0
+          ? snap(rand(0.2, 0.8) * W) - p[0]
+          : snap(rand(0.2, 0.8) * H) - p[1];
+        const dist = Math.abs(inside) < grid * 2 ? grid * 3 * Math.sign(dir[0] + dir[1]) : inside;
+        p = dir[0] !== 0 ? [p[0] + Math.abs(dist) * dir[0], p[1]] : [p[0], p[1] + Math.abs(dist) * dir[1]];
+        points.push(p);
+        // Turn left or right, preferring the side with more room.
+        const options = dir[0] !== 0 ? [[0, 1], [0, -1]] : [[1, 0], [-1, 0]];
+        options.sort((a, b) => room(p, b) - room(p, a));
+        dir = Math.random() < 0.7 ? options[0] : options[1];
+      }
+      // Leave the canvas.
+      const far = Math.max(W, H) + margin * 2;
+      points.push([p[0] + dir[0] * far, p[1] + dir[1] * far]);
+      out.push({ points, bands, width, radius: rand(60, 180), rot: Math.floor(rand(0, 5)) });
+    }
+    return out;
+  }
+  function room(p, d) {
+    if (d[0] > 0) return W - p[0];
+    if (d[0] < 0) return p[0];
+    if (d[1] > 0) return H - p[1];
+    return p[1];
+  }
+
+  function shuffle() {
+    snapshot();
+    const now = performance.now();
+    strokes = composition().map((s, i) => ({
+      ...s,
+      born: reduceMotion ? 0 : now + i * 260,
+      dur: 1400,
+    }));
+    kick();
+  }
+
+  // ── History ────────────────────────────────────────────────────────────────
+
+  function snapshot() {
+    history.push(strokes.map((s) => ({ ...s, born: 0 })));
+    if (history.length > 60) history.shift();
+  }
+  function undo() {
+    if (!history.length) return;
+    strokes = history.pop();
+    kick();
+  }
+
+  // ── Controls ───────────────────────────────────────────────────────────────
+
+  function setPalette(i) {
+    palette = i;
+    const p = PALETTES[i];
+    document.body.style.setProperty("--ground", p.ground);
+    document.body.style.setProperty("--hint", p.hint);
+    $("palName").textContent = p.name;
+    document.querySelectorAll(".swatch").forEach((b, k) => b.setAttribute("aria-pressed", String(k === i)));
+    kick();
+  }
+
+  PALETTES.forEach((p, i) => {
+    const b = document.createElement("button");
+    b.className = "swatch";
+    b.title = p.name;
+    b.setAttribute("aria-label", p.name);
+    b.style.background = p.ground;
+    // A tiny stripe across each swatch.
+    p.bands.slice(0, 3).forEach((c, k) => {
+      const band = document.createElement("i");
+      band.style.cssText = `top:${30 + k * 14}%;height:10%;background:${c}`;
+      b.appendChild(band);
+    });
+    b.addEventListener("click", () => setPalette(i));
+    $("swatches").appendChild(b);
+  });
+
+  for (const key of ["bands", "width", "radius"]) {
+    const input = $(key);
+    input.addEventListener("input", () => {
+      settings[key] = Number(input.value);
+      $(key + "Out").textContent = input.value;
+      // Restyle the last stripe so the sliders feel live.
+      const last = strokes[strokes.length - 1];
+      if (last && !live) { last[key] = settings[key]; kick(); }
+    });
+  }
+
+  $("shuffle").addEventListener("click", shuffle);
+  $("undo").addEventListener("click", undo);
+  $("clear").addEventListener("click", () => { snapshot(); strokes = []; kick(); });
+  $("save").addEventListener("click", () => {
+    render();
+    canvas.toBlob((blob) => {
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = `supergraphic-${PALETTES[palette].name.toLowerCase()}.png`;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    });
+  });
+  $("collapse").addEventListener("click", () => {
+    const dock = $("dock");
+    const closed = dock.classList.toggle("closed");
+    $("collapse").textContent = closed ? "Show" : "Hide";
+    $("collapse").setAttribute("aria-expanded", String(!closed));
+  });
+
+  addEventListener("keydown", (e) => {
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "z") { e.preventDefault(); undo(); }
+    else if (e.key === "s" && !e.metaKey && !e.ctrlKey) shuffle();
+    else if (/^[1-5]$/.test(e.key)) setPalette(Number(e.key) - 1);
+  });
+
+  addEventListener("resize", resize);
+  resize();
+  setPalette(0);
+  // Arrive to a wall that paints itself.
+  setTimeout(() => { shuffle(); history.length = 0; }, 200);
+})();
+</script>
+</body>
+</html>

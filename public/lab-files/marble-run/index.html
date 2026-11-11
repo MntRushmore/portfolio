@@ -1,0 +1,2478 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Marble run</title>
+<link rel="stylesheet" href="../kit.css">
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.186.1/build/three.module.min.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.186.1/examples/jsm/"
+} }
+</script>
+<style>
+  body { overflow: hidden; background: #fdf2e3; touch-action: manipulation; }
+  body.quiet { cursor: none; }
+  canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+  #gl { background: #e2d5bf; }
+  [hidden] { display: none !important; }
+
+  .grid2 { display: grid; grid-template-columns: auto 1fr auto; align-items: center; column-gap: 10px; }
+  .grid2 output { font-weight: 700; font-variant-numeric: tabular-nums; font-size: 13px; min-width: 5ch; text-align: right; }
+  .now { font-family: var(--display); font-weight: 900; font-variation-settings: "wdth" 130; font-size: 22px; line-height: 1.05; letter-spacing: -0.02em; }
+  .head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+
+  /* The one control that stays: play, the tune's name, and a way back to the rest. */
+  .pill {
+    position: fixed; left: 16px; bottom: 16px; z-index: 4; display: flex; align-items: center; gap: 10px;
+    padding: 7px 8px; border-radius: 999px; box-shadow: 3px 3px 0 var(--umber);
+    transition: opacity 320ms var(--ease), translate 320ms var(--ease);
+  }
+  .pill .txt { min-width: 0; padding: 0 2px; }
+  .pill .label { display: block; font-size: 9.5px; line-height: 1.2; }
+  .pill .now { font-size: 16px; max-width: 38vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .pill .btn { min-height: 38px; }
+  #toggle { min-width: 68px; }
+  body.quiet .pill { opacity: 0; translate: 0 8px; pointer-events: none; }
+
+  /* The full controls: a slim rail beside the run on wide screens, a short sheet on small ones. */
+  .sheet {
+    position: fixed; z-index: 4; left: 16px; top: 58px; width: 292px; max-height: calc(100% - 58px - 88px);
+    overflow: auto; display: grid; gap: 12px; align-content: start;
+  }
+  .tunes { display: flex; flex-wrap: wrap; gap: 7px; max-height: 232px; overflow-y: auto; align-content: flex-start; padding: 2px 2px 4px; }
+  .tunes .label { flex: 0 0 100%; margin-top: 4px; }
+  .tunes .btn { min-height: 34px; padding: 0 12px; font-size: 13.5px; }
+  .find { width: 100%; min-height: 36px; padding: 0 12px; border: 2px solid var(--umber); border-radius: 999px; background: #fffaf2; font: inherit; font-size: 14px; color: var(--umber); }
+  .find::placeholder { color: var(--ink-2); opacity: 0.7; }
+  .note { margin: 0; font-size: 12px; color: var(--ink-2); line-height: 1.35; }
+  body.drop::after { content: "Drop the MIDI file"; position: fixed; inset: 12px; z-index: 8; display: grid; place-items: center; border: 3px dashed var(--umber); border-radius: 12px; background: rgba(251, 230, 204, 0.9); font-family: var(--display); font-weight: 900; font-size: 26px; }
+  .sheet .btn { min-height: 38px; }
+  @media (max-width: 899px) {
+    .sheet { top: auto; bottom: 74px; left: 8px; right: 8px; width: auto; max-width: 460px; max-height: 46%; padding: 12px; gap: 10px; }
+    .tunes { max-height: 118px; }
+    .pill { left: 8px; bottom: 8px; }
+  }
+
+  .play {
+    position: fixed; left: var(--cx, 50%); top: var(--cy, 50%); translate: -50% -50%; z-index: 2;
+    min-height: 64px; padding: 0 30px; font-size: 19px; gap: 12px;
+    font-family: var(--display); font-weight: 800; font-variation-settings: "wdth" 118;
+    box-shadow: 5px 5px 0 var(--umber); background: var(--persimmon); color: var(--umber);
+  }
+  .play:hover { background: #ff7a42; }
+  .play:active { transform: translate(2px, 2px); box-shadow: 3px 3px 0 var(--umber); }
+  .play.again { left: var(--ax, 50%); top: var(--ay, 50%); min-height: 52px; font-size: 16px; padding: 0 24px; }
+
+  .scrim { position: fixed; inset: 0; z-index: 5; background: rgba(36, 16, 6, 0.5); }
+  .export { position: fixed; left: 50%; top: 50%; translate: -50% -50%; z-index: 6; width: min(372px, calc(100% - 24px)); display: grid; gap: 14px; }
+  .export .stack { display: grid; gap: 12px; }
+  .export .label { display: block; margin-bottom: 5px; }
+  .export p { margin: 0; font-size: 14px; }
+  .meter { height: 16px; border: 2px solid var(--umber); border-radius: 999px; overflow: hidden; background: var(--plaster-2); }
+  .meter i { display: block; height: 100%; width: 0; background: var(--persimmon); border-right: 2px solid var(--umber); }
+  #exPct { font-weight: 700; font-variant-numeric: tabular-nums; flex: 1; }
+  a.btn { text-decoration: none; color: var(--plaster); }
+
+  .piano { position: fixed; left: var(--cx, 50%); bottom: 16px; translate: -50% 0; display: none; gap: 10px; justify-items: center; z-index: 3; }
+  .piano.on { display: grid; }
+  .keys { position: relative; display: flex; height: 132px; filter: drop-shadow(4px 4px 0 var(--umber)); }
+  .key {
+    position: relative; width: 46px; height: 100%; padding: 0 0 8px; border: 2px solid var(--umber); margin-left: -2px;
+    background: #fffaf2; border-radius: 0 0 6px 6px; cursor: pointer; display: flex; align-items: flex-end; justify-content: center;
+    font-size: 11px; font-weight: 700; color: var(--ink-2); touch-action: none; user-select: none; -webkit-user-select: none;
+  }
+  .key.black {
+    position: absolute; top: 0; width: 32px; height: 60%; z-index: 2; margin: 0; background: var(--umber); color: var(--plaster);
+    border-radius: 0 0 5px 5px;
+  }
+  .key.down { background: var(--persimmon) !important; color: var(--umber); }
+  .piano .bar { display: flex; gap: 8px; align-items: center; background: var(--plaster); border: 2px solid var(--umber); border-radius: 999px; padding: 6px 12px; }
+  .piano .bar.plain { background: none; border: 0; padding: 0; }
+  @media (max-width: 640px) {
+    .key { width: 30px; }
+    .key.black { width: 22px; }
+    .keys { height: 116px; }
+    .piano { bottom: auto; top: 14px; left: 50%; }
+  }
+  @media (prefers-reduced-motion: reduce) { .pill { transition: none; } }
+</style>
+</head>
+<body>
+<canvas id="gl" aria-hidden="true"></canvas>
+<canvas id="c" aria-label="Marbles bounce down a run of xylophone keys, playing a tune."></canvas>
+<button class="btn play" id="play">▶ Drop the marble</button>
+
+<div class="pill panel" id="pill">
+  <button class="btn solid" id="toggle">Play</button>
+  <div class="txt">
+    <span class="label">Now playing</span>
+    <div class="now" id="now">Ode to Joy</div>
+  </div>
+  <button class="btn" id="open" aria-expanded="false" aria-controls="sheet">Tunes</button>
+</div>
+
+<section class="sheet panel" id="sheet" aria-label="Controls" hidden>
+  <input class="find" id="find" type="search" placeholder="Find a tune" aria-label="Find a tune" autocomplete="off">
+  <div class="tunes" role="group" aria-label="Tune" id="songs"></div>
+  <div class="grid2">
+    <label class="label" for="speed">Speed</label>
+    <input type="range" id="speed" min="0.5" max="1.6" step="0.05" value="1">
+    <output id="speedOut">1×</output>
+  </div>
+  <div class="row">
+    <button class="btn" id="bass" aria-pressed="true">Bass marble</button>
+    <button class="btn" id="path" aria-pressed="true">Show path</button>
+  </div>
+  <div class="row">
+    <button class="btn" id="write">Write your own</button>
+    <button class="btn" id="midi">Open a MIDI file</button>
+    <button class="btn" id="video">Make a video</button>
+  </div>
+  <input type="file" id="midiFile" accept=".mid,.midi,audio/midi,audio/x-midi" hidden>
+  <p class="note" id="midiNote">MIDI files are read on this device. Nothing is uploaded.</p>
+</section>
+
+<div class="scrim" id="scrim" hidden></div>
+<section class="export panel" id="export" role="dialog" aria-label="Make a video" hidden>
+  <div>
+    <span class="label">Make a video of</span>
+    <div class="now" id="exName">Ode to Joy</div>
+  </div>
+  <div class="stack" id="exSetup">
+    <div>
+      <span class="label">Shape</span>
+      <div class="seg" id="exShape"><button data-v="v" aria-pressed="true">9:16 vertical</button><button data-v="h" aria-pressed="false">16:9 wide</button></div>
+    </div>
+    <div>
+      <span class="label">Frames per second</span>
+      <div class="seg" id="exFps"><button data-v="60" aria-pressed="true">60</button><button data-v="30" aria-pressed="false">30</button></div>
+    </div>
+    <div class="row"><button class="btn" id="exTitle" aria-pressed="true">Title card</button></div>
+    <div class="row">
+      <button class="btn solid" id="exGo">Render video</button>
+      <button class="btn" id="exClose">Close</button>
+    </div>
+  </div>
+  <div class="stack" id="exBusy" hidden>
+    <div class="meter" role="progressbar" aria-valuemin="0" aria-valuemax="100" id="exMeter"><i id="exBar"></i></div>
+    <div class="row"><span id="exPct">Getting ready…</span><button class="btn" id="exCancel">Cancel</button></div>
+  </div>
+  <div class="stack" id="exDone" hidden>
+    <p id="exInfo"></p>
+    <div class="row">
+      <a class="btn solid" id="exSave" download>Download</a>
+      <button class="btn" id="exBack">Back</button>
+    </div>
+  </div>
+  <p id="exErr" hidden></p>
+</section>
+
+<div class="piano" id="piano" aria-label="Piano: play a tune, then build a run from it">
+  <div class="bar"><span class="label" id="pianoHint">Play a tune. Keys A–K work too.</span></div>
+  <div class="keys" id="keys"></div>
+  <div class="bar plain">
+    <button class="btn solid" id="build" disabled>Build my run</button>
+    <button class="btn" id="cancel">Cancel</button>
+  </div>
+</div>
+
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const canvas = $("c");
+  let ctx = canvas.getContext("2d");
+  const motion = matchMedia("(prefers-reduced-motion: reduce)");
+  let exporting = false;
+  const still = () => motion.matches && !exporting;   // a video always gets the full motion
+  const TAU = Math.PI * 2;
+  const clamp = (x, a = 0, b = 1) => Math.max(a, Math.min(b, x));
+  const backOut = (x) => 1 + 2.70158 * Math.pow(x - 1, 3) + 1.70158 * Math.pow(x - 1, 2);
+  const rnd = (seed, k) => { const s = Math.sin(seed * 12.9898 + k * 78.233) * 43758.5453; return s - Math.floor(s); };
+  let W = 0, H = 0, dpr = 1;
+
+  const INK = "#241006", PLASTER = "#fbe6cc", PLASTER2 = "#f3d2ab", CREAM = "#fff4e2";
+  const PERSIMMON = "#f2662a", BRICK = "#b32317", MUSTARD = "#f4c04e", TEAL = "#1f6b70";
+
+  // ── Tunes ──────────────────────────────────────────────────────────────────
+  // Melody and bass are lists of [midi, length in beats]; midi 0 is a rest.
+  // All old enough to be anyone's.
+  const C4 = 60, D4 = 62, E4 = 64, F4 = 65, G4 = 67, A4 = 69, B4 = 71, C5 = 72, D5 = 74, E5 = 76, G3 = 55;
+  const Ds5 = 75, Gs4 = 68, E2 = 40, A2 = 45, E3 = 52, Gs3 = 56, A3 = 57;
+  const half = (...ms) => ms.map((m) => [m, 2]);
+  const SONGS = [
+    { name: "Ode to Joy", group: "Classical", bpm: 138, notes: [
+      [E4,1],[E4,1],[F4,1],[G4,1],[G4,1],[F4,1],[E4,1],[D4,1],[C4,1],[C4,1],[D4,1],[E4,1],[E4,1.5],[D4,0.5],[D4,2],
+      [E4,1],[E4,1],[F4,1],[G4,1],[G4,1],[F4,1],[E4,1],[D4,1],[C4,1],[C4,1],[D4,1],[E4,1],[D4,1.5],[C4,0.5],[C4,2]],
+      // I · V · I · V, twice, closing V → I.
+      bass: half(48, 55, 47, 43, 48, 52, 55, 43, 48, 55, 47, 43, 48, 52, 43, 48),
+      parts: [[0, "wood", "Marimba"], [16, "vibe", "Marimba and vibraphone"]] },
+    { name: "Twinkle", group: "Songs", bpm: 120, notes: [
+      [C4,1],[C4,1],[G4,1],[G4,1],[A4,1],[A4,1],[G4,2],[F4,1],[F4,1],[E4,1],[E4,1],[D4,1],[D4,1],[C4,2],
+      [G4,1],[G4,1],[F4,1],[F4,1],[E4,1],[E4,1],[D4,2],[G4,1],[G4,1],[F4,1],[F4,1],[E4,1],[E4,1],[D4,2],
+      [C4,1],[C4,1],[G4,1],[G4,1],[A4,1],[A4,1],[G4,2],[F4,1],[F4,1],[E4,1],[E4,1],[D4,1],[D4,1],[C4,2]],
+      bass: half(48, 52, 53, 48, 50, 48, 55, 48, 52, 50, 48, 55, 52, 50, 48, 55, 48, 52, 53, 48, 50, 48, 55, 48),
+      parts: [[0, "bell", "Brass bells"], [16, "white", "Marimba and piano"], [32, "vibe", "Vibraphone"]] },
+    { name: "Frère Jacques", group: "Songs", bpm: 132, notes: [
+      [C4,1],[D4,1],[E4,1],[C4,1],[C4,1],[D4,1],[E4,1],[C4,1],[E4,1],[F4,1],[G4,2],[E4,1],[F4,1],[G4,2],
+      [G4,0.5],[A4,0.5],[G4,0.5],[F4,0.5],[E4,1],[C4,1],[G4,0.5],[A4,0.5],[G4,0.5],[F4,0.5],[E4,1],[C4,1],
+      [C4,1],[G3,1],[C4,2],[C4,1],[G3,1],[C4,2]],
+      bass: half(48, 43, 48, 43, 48, 43, 48, 43, 48, 43, 48, 43, 52, 48, 52, 48),
+      parts: [[0, "wood", "Marimba"], [16, "bell", "Marimba and bells"]] },
+    // One beat here is a sixteenth. The left hand answers in the gaps, as written.
+    { name: "Für Elise", group: "Classical", bpm: 272, sharps: true, notes: [
+      [E5,1],[Ds5,1],[E5,1],[Ds5,1],[E5,1],[B4,1],[D5,1],[C5,1],[A4,3],[C4,1],[E4,1],[A4,1],[B4,3],[E4,1],[Gs4,1],[B4,1],[C5,3],[E4,1],
+      [E5,1],[Ds5,1],[E5,1],[Ds5,1],[E5,1],[B4,1],[D5,1],[C5,1],[A4,3],[C4,1],[E4,1],[A4,1],[B4,3],[E4,1],[C5,1],[B4,1],[A4,6]],
+      bass: [[0,8],[A2,1],[E3,1],[A3,1],[0,3],[E2,1],[E3,1],[Gs3,1],[0,3],[A2,1],[E3,1],[A3,1],[0,9],
+             [A2,1],[E3,1],[A3,1],[0,3],[E2,1],[E3,1],[Gs3,1],[0,3],[A2,1],[E3,1],[A3,4]],
+      parts: [[0, "white", "Marimba and piano"]] },
+    // One beat is an eighth. Grieg's tiptoe theme, twice, over its pizzicato tonic and fifth.
+    { name: "Mountain King", group: "Classical", bpm: 200, sharps: true, notes: [
+      [59,1],[61,1],[62,1],[64,1],[66,1],[62,1],[66,2],[65,1],[61,1],[65,2],[64,1],[60,1],[64,2],
+      [59,1],[61,1],[62,1],[64,1],[66,1],[62,1],[66,1],[71,1],[69,1],[66,1],[62,1],[66,1],[69,4],
+      [59,1],[61,1],[62,1],[64,1],[66,1],[62,1],[66,2],[65,1],[61,1],[65,2],[64,1],[60,1],[64,2],
+      [59,1],[61,1],[62,1],[64,1],[66,1],[62,1],[66,1],[71,1],[69,1],[66,1],[62,1],[66,1],[69,4],[59,4]],
+      bass: [...half(47, 54, 47, 54, 47, 54, 47, 54, 47, 54, 47, 54, 50, 57), [50, 4],
+             ...half(47, 54, 47, 54, 47, 54, 47, 54, 47, 54, 47, 54, 50, 57), [50, 4], [47, 4]],
+      parts: [[0, "wood", "Marimba"], [32, "vibe", "Marimba and vibraphone"]] },
+    // Pachelbel: the ground bass, and the violin's first three passes over it.
+    { name: "Canon in D", group: "Classical", bpm: 96, sharps: true, notes: [
+      [78,1],[76,1],[74,1],[73,1],[71,1],[69,1],[71,1],[73,1],
+      [74,1],[73,1],[71,1],[69,1],[67,1],[66,1],[67,1],[64,1],
+      [74,0.5],[78,0.5],[81,0.5],[79,0.5],[78,0.5],[74,0.5],[78,0.5],[76,0.5],[74,0.5],[71,0.5],[74,0.5],[81,0.5],[79,0.5],[83,0.5],[81,0.5],[79,0.5],
+      [78,3]],
+      bass: [[50,1],[45,1],[47,1],[42,1],[43,1],[50,1],[43,1],[45,1],[50,1],[45,1],[47,1],[42,1],[43,1],[50,1],[43,1],[45,1],
+             [50,1],[45,1],[47,1],[42,1],[43,1],[50,1],[43,1],[45,1],[50,3]],
+      parts: [[0, "vibe", "Vibraphone"], [8, "white", "Marimba and piano"], [16, "bell", "Brass bells"]] },
+    // Petzold's minuet from the Anna Magdalena notebook, long credited to Bach.
+    { name: "Minuet in G", group: "Classical", bpm: 126, sharps: true, notes: [
+      [74,1],[67,.5],[69,.5],[71,.5],[72,.5],[74,1],[67,1],[67,1],[76,1],[72,.5],[74,.5],[76,.5],[78,.5],[79,1],[67,1],[67,1],
+      [72,1],[74,.5],[72,.5],[71,.5],[69,.5],[71,1],[72,.5],[71,.5],[69,.5],[67,.5],[66,1],[67,.5],[69,.5],[71,.5],[67,.5],[71,1],[69,2],
+      [74,1],[67,.5],[69,.5],[71,.5],[72,.5],[74,1],[67,1],[67,1],[76,1],[72,.5],[74,.5],[76,.5],[78,.5],[79,1],[67,1],[67,1],
+      [72,1],[74,.5],[72,.5],[71,.5],[69,.5],[71,1],[72,.5],[71,.5],[69,.5],[67,.5],[69,1],[71,.5],[69,.5],[67,.5],[66,.5],[67,3]],
+      bass: [[55,2],[57,1],[59,2],[59,1],[60,2],[60,1],[59,2],[59,1],[57,2],[57,1],[55,2],[55,1],[62,1],[59,1],[55,1],[62,1],[50,2],
+             [55,2],[57,1],[59,2],[59,1],[60,2],[60,1],[59,2],[59,1],[57,2],[57,1],[55,2],[55,1],[50,2],[50,1],[43,3]],
+      parts: [[0, "white", "Marimba and piano"], [24, "bell", "Marimba and bells"]] },
+    // Mozart's Rondo alla turca: one beat is a sixteenth.
+    { name: "Turkish March", group: "Classical", bpm: 400, sharps: true, notes: [
+      [71,1],[69,1],[68,1],[69,1],[72,4],[74,1],[72,1],[71,1],[72,1],[76,4],[77,1],[76,1],[75,1],[76,1],
+      [83,1],[81,1],[80,1],[81,1],[83,1],[81,1],[80,1],[81,1],[84,4],[81,2],[84,2],
+      [83,2],[81,2],[79,2],[81,2],[83,2],[81,2],[79,2],[81,2],[83,2],[81,2],[79,2],[78,2],[76,4]],
+      bass: [[0,4],[45,4],[52,4],[45,4],[52,4],[45,4],[52,4],[45,4],[52,4],[52,4],[59,4],[52,4],[59,4],[47,4],[54,4],[52,4]],
+      parts: [[0, "white", "Marimba and piano"]] },
+    // Mozart again. One beat is an eighth; the second marble doubles the tune an octave down, as the orchestra does.
+    { name: "Eine kleine Nachtmusik", group: "Classical", bpm: 264, sharps: true, notes: [
+      [67,3],[62,1],[67,3],[62,1],[67,1],[62,1],[67,1],[71,1],[74,4],[72,3],[69,1],[72,3],[69,1],[72,1],[69,1],[66,1],[69,1],[62,4]],
+      bass: [[55,3],[50,1],[55,3],[50,1],[55,1],[50,1],[55,1],[59,1],[62,4],[60,3],[57,1],[60,3],[57,1],[60,1],[57,1],[54,1],[57,1],[50,4]],
+      parts: [[0, "vibe", "Vibraphone"]] },
+    { name: "Swan Lake", group: "Classical", bpm: 92, sharps: true, notes: [
+      [78,2],[71,.5],[73,.5],[74,.5],[76,.5],[78,1.5],[74,.5],[78,1.5],[74,.5],[78,1.5],[71,.5],[74,.5],[71,.5],[67,.5],[74,.5],[71,4]],
+      bass: [[47,1],[54,1],[47,1],[54,1],[47,1],[54,1],[47,1],[54,1],[47,1],[54,1],[43,1],[50,1],[47,4]],
+      parts: [[0, "vibe", "Vibraphone"]] },
+    // Grieg's Morning Mood, twice, the second time an octave up. One beat is an eighth.
+    { name: "Morning Mood", group: "Classical", bpm: 168, sharps: true, notes: [
+      [71,1],[68,1],[66,1],[64,1],[66,1],[68,1],[71,1],[68,1],[66,1],[64,1],[66,.5],[68,.5],[66,.5],[68,.5],[71,1],[68,1],[71,1],[73,1],[68,1],[73,1],[71,1],[68,1],[66,1],[64,3],
+      [83,1],[80,1],[78,1],[76,1],[78,1],[80,1],[83,1],[80,1],[78,1],[76,1],[78,.5],[80,.5],[78,.5],[80,.5],[83,1],[80,1],[83,1],[85,1],[80,1],[85,1],[83,1],[80,1],[78,1],[76,3]],
+      bass: [[52,3],[59,3],[52,3],[59,3],[52,3],[57,3],[52,3],[52,3],[52,3],[59,3],[52,3],[59,3],[52,3],[57,3],[52,3],[52,3]],
+      parts: [[0, "vibe", "Vibraphone"], [24, "bell", "Bells"]] },
+    // One beat is an eighth of the lilting 6/8.
+    { name: "Greensleeves", group: "Songs", bpm: 162, sharps: true, notes: [
+      [69,1],[72,2],[74,1],[76,1.5],[78,.5],[76,1],[74,2],[71,1],[67,1.5],[69,.5],[71,1],[72,2],[69,1],[69,1.5],[68,.5],[69,1],[71,2],[68,1],[64,2],
+      [69,1],[72,2],[74,1],[76,1.5],[78,.5],[76,1],[74,2],[71,1],[67,1.5],[69,.5],[71,1],[72,1.5],[71,.5],[69,1],[68,1.5],[66,.5],[68,1],[69,3],[69,3]],
+      bass: [[0,1],[45,3],[52,3],[43,3],[50,3],[45,3],[45,3],[52,3],[47,3],[45,3],[52,3],[43,3],[50,3],[45,3],[52,3],[45,3],[45,3]],
+      parts: [[0, "wood", "Marimba"], [24, "vibe", "Marimba and vibraphone"]] },
+    { name: "Jingle Bells", group: "Songs", bpm: 200, notes: [
+      [E4,1],[E4,1],[E4,2],[E4,1],[E4,1],[E4,2],[E4,1],[G4,1],[C4,1.5],[D4,.5],[E4,4],
+      [F4,1],[F4,1],[F4,1.5],[F4,.5],[F4,1],[E4,1],[E4,1],[E4,.5],[E4,.5],[E4,1],[D4,1],[D4,1],[E4,1],[D4,2],[G4,2],
+      [E4,1],[E4,1],[E4,2],[E4,1],[E4,1],[E4,2],[E4,1],[G4,1],[C4,1.5],[D4,.5],[E4,4],
+      [F4,1],[F4,1],[F4,1.5],[F4,.5],[F4,1],[E4,1],[E4,1],[E4,.5],[E4,.5],[G4,1],[G4,1],[F4,1],[D4,1],[C4,4]],
+      bass: [...half(48, 43, 48, 43, 48, 43, 48, 43, 53, 48, 48, 43, 50, 45, 43, 43, 48, 43, 48, 43, 48, 43, 48, 43, 53, 48, 48, 43, 43, 47), [48, 4]],
+      parts: [[0, "bell", "Brass bells"], [32, "vibe", "Vibraphone"]] },
+    { name: "Happy Birthday", group: "Songs", bpm: 116, notes: [
+      [G4,.75],[G4,.25],[A4,1],[G4,1],[C5,1],[B4,2],[G4,.75],[G4,.25],[A4,1],[G4,1],[D5,1],[C5,2],
+      [G4,.75],[G4,.25],[79,1],[E5,1],[C5,1],[B4,1],[A4,1],[77,.75],[77,.25],[E5,1],[C5,1],[D5,1],[C5,3]],
+      bass: [[0,1],[48,3],[43,3],[43,3],[48,3],[48,3],[53,3],[48,2],[43,1],[48,3]],
+      parts: [[0, "white", "Marimba and piano"], [13, "bell", "Bells"]] },
+    // Joplin's rag: one beat is a sixteenth.
+    { name: "The Entertainer", group: "Songs", bpm: 380, sharps: true, notes: [
+      [62,1],[63,1],[64,1],[72,2],[64,1],[72,2],[64,1],[72,6],[72,1],[74,1],[75,1],[76,1],[72,1],[74,1],[76,2],[71,1],[74,2],[72,4],[0,2],
+      [62,1],[63,1],[64,1],[72,2],[64,1],[72,2],[64,1],[72,6],[72,1],[74,1],[75,1],[76,1],[72,1],[74,1],[76,2],[71,1],[74,2],[72,8]],
+      bass: [[0,2],[48,4],[55,4],[48,4],[55,4],[48,4],[43,4],[48,4],[55,4],[48,4],[55,4],[48,4],[55,4],[48,4],[43,4],[48,8]],
+      parts: [[0, "white", "Marimba and piano"]] },
+  ];
+  const surprise = () => {
+    const scale = [0, 2, 4, 7, 9];
+    const pitch = (deg) => C4 + 12 * Math.floor(deg / 5) + scale[deg % 5];
+    const pick = (a) => a[Math.floor(Math.random() * a.length)];
+    let deg = 4, notes = [], beats = 0;
+    while (beats < 28) {
+      deg = clamp(deg + pick([-2, -1, -1, 1, 1, 2, 0, 3, -3]), 0, 9);
+      const phraseEnd = beats % 8 === 6;
+      const r = phraseEnd ? 2 : pick([1, 1, 1, 0.5, 2].filter((x) => x !== 2 || beats % 2 === 0));
+      if (r === 0.5) { const d2 = clamp(deg + pick([-1, 1]), 0, 9); notes.push([pitch(deg), 0.5], [pitch(d2), 0.5]); deg = d2; beats += 1; }
+      else { notes.push([pitch(deg), r]); beats += r; }
+    }
+    notes.push([C4, 3]);
+    // C · Am · F · G under a pentatonic tune can't go wrong.
+    const roots = [48, 45, 53, 43], bass = [];
+    for (let b = 0; b < beats; b += 2) {
+      const root = roots[Math.floor(b / 4) % 4], len = Math.min(2, beats - b);
+      bass.push([b % 4 === 0 ? root : root + 7, len]);
+    }
+    bass.push([48, 3]);
+    return { name: "Surprise", bpm: 140, notes, bass };
+  };
+
+  // ── Sound: a yarn mallet on a rosewood bar ────────────────────────────────
+  let ac = null, master = null, send = null, noiseBuf = null, liveBus = null, playBus = null;
+  function makeBus() {
+    const b = ac.createGain();
+    b.connect(master); b.connect(send);
+    // A drier way in, for sounds that are all attack: mostly straight to the mix, a little to the room.
+    b.dry = ac.createGain(); b.dry.connect(b);
+    const less = ac.createGain(); less.gain.value = -0.7;
+    b.dry.connect(less); less.connect(send);
+    return b;
+  }
+  /** Build the mixer, room and noise source on any context, live or offline. */
+  function makeGraph(c) {
+    const sr = c.sampleRate;
+    const comp = c.createDynamicsCompressor();
+    comp.threshold.value = -15; comp.knee.value = 14; comp.ratio.value = 3.5; comp.attack.value = 0.004; comp.release.value = 0.22;
+    const m = c.createGain(); m.gain.value = 0.9;
+    const speaker = c.createGain();
+    m.connect(comp); comp.connect(speaker); speaker.connect(c.destination);
+
+    // A small wooden room: a few early reflections, then a tail that darkens as it dies.
+    const len = Math.floor(sr * 2.3);
+    const ir = c.createBuffer(2, len, sr);
+    for (let ch = 0; ch < 2; ch++) {
+      const d = ir.getChannelData(ch);
+      let lp = 0;
+      const pre = Math.floor(sr * 0.012);
+      for (let i = pre; i < len; i++) {
+        const t = i / sr;
+        const a = 0.75 * Math.exp(-t * 2.2) + 0.08;
+        lp += a * ((Math.random() * 2 - 1) - lp);
+        d[i] = lp * Math.exp(-t * 3.1) * Math.min(1, (t - 0.012) / 0.03 + 0.25);
+      }
+      for (const ms of [13, 19, 27, 34, 43, 55]) {
+        const i = Math.floor(sr * (ms + ch * 3.5) / 1000);
+        d[i] += (ch ^ (ms & 1) ? 1 : -1) * 0.7 * Math.exp(-ms / 30);
+      }
+    }
+    const reverb = c.createConvolver(); reverb.buffer = ir;
+    const sd = c.createGain(); sd.gain.value = 0.3;
+    const hp = c.createBiquadFilter(); hp.type = "highpass"; hp.frequency.value = 220;
+    sd.connect(hp); hp.connect(reverb); reverb.connect(m);
+
+    const nb = c.createBuffer(1, Math.floor(sr * 0.3), sr);
+    const nd = nb.getChannelData(0);
+    for (let i = 0; i < nd.length; i++) nd[i] = Math.random() * 2 - 1;
+    return { master: m, send: sd, noiseBuf: nb, out: comp, speaker };
+  }
+  let liveOut = null;
+  const MUTE = new URLSearchParams(location.search).has("mute");   // ?mute=1 silences the speakers, nothing else
+  function audio() {
+    if (ac) { if (ac.state !== "running") ac.resume(); return ac; }
+    ac = new (window.AudioContext || window.webkitAudioContext)({ latencyHint: "interactive" });
+    const g = makeGraph(ac);
+    master = g.master; send = g.send; noiseBuf = g.noiseBuf; liveOut = g.out;
+    if (MUTE) g.speaker.gain.value = 0;
+    liveBus = makeBus();
+    return ac;
+  }
+  // ── Sampled instruments ──────────────────────────────────────────────────────
+  // One MP3 per instrument: notes three semitones apart, each in its own slot of
+  // `slot` seconds (see samples/README.md). A strike plays the nearest one, repitched.
+  const range = (a, b) => { const o = []; for (let m = a; m <= b; m += 3) o.push(m); return o; };
+  const SAMPLES = {
+    marimba: { roots: range(36, 84), slot: 2, gain: 0.95 },
+    vibraphone: { roots: range(53, 89), slot: 4, gain: 0.8 },
+    glockenspiel: { roots: range(60, 96), slot: 3, gain: 0.5 },
+    piano: { roots: range(45, 90), slot: 4, gain: 0.9 },
+    tubes: { roots: [60.21, 62.16, 66.02, 69.15, 73.99], slot: 0.6, gain: 1.1 },   // five real boomwhacker hits, at the pitches they were played
+  };
+  // What each kind of key is and sounds like. `up` is a transposition in semitones.
+  const KINDS = {
+    tube: { sample: "tubes", up: 0, sound: "boomwhacker" },
+    wood: { sample: "marimba", up: 0, sound: "marimba" },
+    white: { sample: "piano", up: 0, sound: "piano" },
+    vibe: { sample: "vibraphone", up: 0, sound: "vibraphone" },
+    bell: { sample: "glockenspiel", up: 12, sound: "glockenspiel" },
+  };
+  const bank = {};
+  function loadSample(name) {
+    if (bank[name]) return bank[name].ready;
+    const b = (bank[name] = { buf: null, onsets: null, ready: null });
+    b.ready = fetch(`samples/${name}.mp3`).then((r) => { if (!r.ok) throw new Error(r.status); return r.arrayBuffer(); })
+      .then((ab) => new Promise((ok, no) => {
+        const C = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+        const p = new C(1, 1, 44100).decodeAudioData(ab, ok, no);   // decoding needs no user gesture
+        if (p && p.then) p.then(ok, no);
+      }))
+      .then((buf) => {
+        // MP3 decoders pad the start by a few dozen milliseconds: find where each note really begins.
+        const d = buf.getChannelData(0), sr = buf.sampleRate, S = SAMPLES[name];
+        b.onsets = S.roots.map((_, i) => {
+          const a = Math.max(0, Math.floor((0.2 + i * S.slot) * sr)), z = Math.min(d.length, a + Math.floor(0.3 * sr));
+          let pk = 0;
+          for (let k = a; k < z; k++) { const x = Math.abs(d[k]); if (x > pk) pk = x; }
+          let k = a;
+          while (k < z && Math.abs(d[k]) < pk * 0.04) k++;
+          return Math.max(0, k / sr - 0.002);
+        });
+        b.buf = buf;
+      })
+      .catch(() => { b.failed = true; });                           // the synth below stands in
+    return b.ready;
+  }
+  const kindsOf = (r) => [...new Set(r.events.filter((e) => !e.felt && KINDS[e.kind].sample).map((e) => KINDS[e.kind].sample))];
+  const loadFor = (r) => Promise.all(kindsOf(r).map(loadSample));
+  const soundsReady = (r) => kindsOf(r).every((n) => bank[n] && (bank[n].buf || bank[n].failed));
+
+  function sampleNote(e, when, bus) {
+    const K = KINDS[e.kind], S = SAMPLES[K.sample], b = bank[K.sample];
+    if (!S || !b || !b.buf) return false;
+    const midi = e.midi + K.up;
+    let i = 0;
+    for (let k = 1; k < S.roots.length; k++) if (Math.abs(S.roots[k] - midi) < Math.abs(S.roots[i] - midi)) i = k;
+    const rate = Math.pow(2, (midi - S.roots[i]) / 12), t = Math.max(when, ac.currentTime + 0.001);
+    const src = ac.createBufferSource(); src.buffer = b.buf; src.playbackRate.value = rate;
+    // Softer hits are darker as well as quieter.
+    const lp = ac.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 1600 + 15000 * e.vel * e.vel; lp.Q.value = 0.3;
+    const g = ac.createGain(), level = S.gain * (0.3 + 0.7 * e.vel * e.vel) * 0.85, len = (S.slot - 0.14) / rate;
+    g.gain.setValueAtTime(level, t);
+    g.gain.setValueAtTime(level, t + len - 0.08);
+    g.gain.linearRampToValueAtTime(0, t + len);
+    src.connect(lp); lp.connect(g);
+    const tail = panned(g, e.pan, e.kind === "tube" ? bus.dry : bus);
+    src.start(t, b.onsets[i], S.slot - 0.12);
+    src.onended = () => tail.disconnect();
+    return true;
+  }
+  /** Sound one event of a run: a note, or the thud of felt. */
+  function strike(e, when, bus) {
+    if (e.felt) return thud(when, e.felt, e.pan, bus);
+    if (e.kind === "tube" && !(bank.tubes && bank.tubes.buf)) return bonk(e.midi, when, e.vel, e.pan, bus);
+    if (!sampleNote(e, when, bus)) mallet(e.midi + KINDS[e.kind].up, when, e.vel, e.pan, bus, e.kind === "bell" ? "bell" : e.low ? "low" : "key");
+  }
+
+  const hz = (m) => 440 * Math.pow(2, (m - 69) / 12);
+  function panned(node, pan, bus) {
+    if (ac.createStereoPanner) { const p = ac.createStereoPanner(); p.pan.value = clamp(pan, -1, 1); node.connect(p); p.connect(bus); return p; }
+    node.connect(bus); return node;
+  }
+  /**
+   * One struck bar. Three instruments share the run: rosewood marimba in the bass
+   * (overtones at 4× and ~10×), painted xylophone keys in the middle, and steel
+   * glockenspiel bars up top, whose overtones are the stretched ones of a free metal bar.
+   */
+  function mallet(midi, when, vel, pan, bus, kind) {
+    const f = hz(midi), t = Math.max(when, ac.currentTime + 0.001);
+    const bell = kind === "bell", low = kind === "low";
+    const ring = bell ? clamp(2.4 * Math.pow(523 / f, 0.5), 1.3, 2.8) : clamp(1.9 * Math.pow(220 / f, 0.55), 0.4, 2.6);
+    const out = ac.createGain(); out.gain.value = bell ? 0.2 : low ? 0.31 : 0.27;
+    const tail = panned(out, pan, bus);
+    const bright = 0.3 + 0.95 * vel * vel;   // harder hits are brighter, not just louder
+    const parts = bell
+      ? [[1, 1, ring], [2.76, 0.42 * bright, ring * 0.55], [5.4, 0.2 * bright, ring * 0.28], [8.93, 0.08 * bright, 0.2]]
+      : [[1, 1, ring], [3.98, 0.36 * bright, ring * 0.22], [9.9, 0.16 * bright, 0.09]];
+    if (low) parts.push([2, 0.24, ring * 0.45]); // so small speakers still find the bass
+    for (const [mul, amp, d] of parts) {
+      if (f * mul > 15000) continue;
+      const o = ac.createOscillator(); o.frequency.value = f * mul;
+      const g = ac.createGain();
+      g.gain.setValueAtTime(0, t);
+      g.gain.linearRampToValueAtTime(amp * vel, t + (bell ? 0.0015 : 0.0025));
+      g.gain.exponentialRampToValueAtTime(0.0008, t + d);
+      o.connect(g); g.connect(out);
+      o.start(t); o.stop(t + d + 0.03);
+      if (mul === 1) o.onended = () => tail.disconnect();
+    }
+    // The knock of the mallet itself.
+    const n = ac.createBufferSource(); n.buffer = noiseBuf;
+    const bp = ac.createBiquadFilter(); bp.type = "bandpass"; bp.frequency.value = bell ? 6200 : clamp(f * 4.5, 900, 5200); bp.Q.value = 0.8;
+    const ng = ac.createGain();
+    ng.gain.setValueAtTime((bell ? 0.5 : 0.9) * vel * vel, t);
+    ng.gain.exponentialRampToValueAtTime(0.001, t + (bell ? 0.018 : 0.03));
+    n.connect(bp); bp.connect(ng); ng.connect(out);
+    n.start(t, Math.random() * 0.2, 0.05);
+  }
+  /**
+   * A plastic percussion tube. What you hear from one is mostly the air inside it:
+   * the slap of the hit is a burst of noise, and the tube's column of air rings at
+   * its own pitch and overtones for a fifth of a second. So: noise through a few
+   * narrow resonators tuned to the note, plus the dull knock of the plastic.
+   */
+  function bonk(midi, when, vel, pan, bus) {
+    const P = { q: 42, ring: 0.34, slap: 0.16, air: 5, body: 0.55, lp: 4600 };
+    const f = hz(midi), t = Math.max(when, ac.currentTime + 0.001);
+    const out = ac.createGain(); out.gain.value = 1.5 * (0.35 + 0.65 * vel);
+    const tone = ac.createBiquadFilter(); tone.type = "lowpass"; tone.frequency.value = P.lp; tone.Q.value = 0.4;
+    tone.connect(out);
+    const tail = panned(out, pan, bus);
+    const n = ac.createBufferSource(); n.buffer = noiseBuf;
+    const env = ac.createGain();
+    env.gain.setValueAtTime(0, t); env.gain.linearRampToValueAtTime(1, t + 0.002); env.gain.exponentialRampToValueAtTime(0.001, t + 0.045);
+    n.connect(env);
+    // The air column: fundamental strongest, each overtone weaker and shorter-lived.
+    [[1, 1.0, 1], [2, 0.34, 0.75], [3, 0.14, 0.55], [4, 0.05, 0.45]].forEach(([mul, amp, qk]) => {
+      if (f * mul > 9000) return;
+      const bp = ac.createBiquadFilter(); bp.type = "bandpass"; bp.frequency.value = f * mul; bp.Q.value = P.q * qk;
+      const g = ac.createGain(); g.gain.value = amp * P.air;
+      env.connect(bp); bp.connect(g); g.connect(tone);
+    });
+    // The note itself, starting a touch sharp as the tube flexes.
+    const o = ac.createOscillator();
+    o.frequency.setValueAtTime(f * 1.03, t); o.frequency.exponentialRampToValueAtTime(f, t + 0.04);
+    const og = ac.createGain();
+    og.gain.setValueAtTime(0, t); og.gain.linearRampToValueAtTime(P.body, t + 0.006); og.gain.exponentialRampToValueAtTime(0.001, t + P.ring);
+    o.connect(og); og.connect(tone);
+    // The plastic: a short dull slap.
+    const slap = ac.createBiquadFilter(); slap.type = "bandpass"; slap.frequency.value = 1500; slap.Q.value = 0.8;
+    const sg = ac.createGain();
+    sg.gain.setValueAtTime(P.slap * vel, t); sg.gain.exponentialRampToValueAtTime(0.001, t + 0.02);
+    n.connect(slap); slap.connect(sg); sg.connect(tone);
+    n.start(t, Math.random() * 0.2, 0.08); o.start(t); o.stop(t + P.ring + 0.1);
+    o.onended = () => tail.disconnect();
+  }
+
+  /** A marble landing on felt: nearly nothing, but not nothing. */
+  function thud(when, vel, pan, bus) {
+    const t = Math.max(when, ac.currentTime + 0.001);
+    const o = ac.createOscillator();
+    o.frequency.setValueAtTime(170, t); o.frequency.exponentialRampToValueAtTime(70, t + 0.08);
+    const g = ac.createGain();
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(0.3 * vel, t + 0.004);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.14);
+    o.connect(g);
+    const tail = panned(g, pan, bus);
+    o.start(t); o.stop(t + 0.16);
+    o.onended = () => tail.disconnect();
+    const n = ac.createBufferSource(); n.buffer = noiseBuf;
+    const lp = ac.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 700;
+    const ng = ac.createGain();
+    ng.gain.setValueAtTime(0.16 * vel, t); ng.gain.exponentialRampToValueAtTime(0.001, t + 0.035);
+    n.connect(lp); lp.connect(ng); ng.connect(g);
+    n.start(t, Math.random() * 0.2, 0.05);
+  }
+  /** The audio clock as heard: where the speakers are, not where the buffer is. */
+  function audioNow() {
+    if (ac.getOutputTimestamp) {
+      const ts = ac.getOutputTimestamp();
+      if (ts && ts.contextTime > 0 && ts.performanceTime > 0) {
+        const est = ts.contextTime + (performance.now() - ts.performanceTime) / 1000;
+        if (Math.abs(est - ac.currentTime) < 0.4) return est;
+      }
+    }
+    return ac.currentTime - (ac.outputLatency || 0);
+  }
+
+  // ── The run, built backwards from the tune ───────────────────────────────
+  // Every note becomes a bar placed where its marble will be at that note's
+  // time. The whole run sinks at a steady rate, so the camera can glide; between
+  // bars the marble is in free fall, and each bar is angled like a mirror between
+  // the way the marble arrives and the way it has to leave.
+  const G = 2000;          // gravity, px/s²
+  const FALL = 0.55;       // seconds from a chute to its first bar
+  const TOP = 118;         // where the first chute holds its marble
+  const MAXGAP = 1.15;     // longer waits get a felt pad to bounce on
+  const HOP_T = 0.62, HOP_VX = 130, HOP_VY = -420; // the last hop, into the cup
+  let run = null, view = { z: 1, ox: 0, FW: 390, Hw: 800 };
+
+  const FLATS = ["C", "C♯", "D", "E♭", "E", "F", "F♯", "G", "A♭", "A", "B♭", "B"];
+  const SHARPS = ["C", "C♯", "D", "D♯", "E", "F", "F♯", "G", "G♯", "A", "A♯", "B"];
+  // Twelve paints from the stairwell's decade, one per pitch class.
+  const PAINT = ["#cf2a1c", "#e5501d", "#f2662a", "#f68d24", "#f3b62c", "#aebb35", "#5f8f33", "#1b8c86", "#2c62b3", "#7d3f98", "#b23a7c", "#e0566c"];
+  const shade = (hex, k) => "#" + [1, 3, 5].map((i) => Math.round(clamp(parseInt(hex.slice(i, i + 2), 16) * k, 0, 255)).toString(16).padStart(2, "0")).join("");
+  const tint = (hex, a) => "#" + [1, 3, 5].map((i) => { const c = parseInt(hex.slice(i, i + 2), 16); return Math.round(c + (255 - c) * a).toString(16).padStart(2, "0"); }).join("");
+
+  function makeBar(x, y, nx, ny, len, thick, R, slide = 0) {
+    const hl = len / 2, ht = thick / 2;
+    return { cx: x - nx * (R + ht) - ny * slide, cy: y - ny * (R + ht) + nx * slide, tx: -ny, ty: nx, nx, ny, hl, ht, reach: hl + ht + 2, ang: Math.atan2(ny, nx) + Math.PI / 2 };
+  }
+  function circleHitsBar(px, py, r, b) {
+    const dx = px - b.cx, dy = py - b.cy, far = b.reach + r;
+    if (dx > far || dx < -far || dy > far || dy < -far) return false;
+    const lx = Math.abs(dx * b.tx + dy * b.ty) - b.hl, ly = Math.abs(dx * b.nx + dy * b.ny) - b.ht;
+    const ax = lx > 0 ? lx : 0, ay = ly > 0 ? ly : 0;
+    return ax * ax + ay * ay < r * r;
+  }
+  const RIM = [[-1,-1],[1,-1],[1,1],[-1,1],[0,-1],[0,1],[-1,0],[1,0],[0,0],[-0.5,-1],[0.5,-1],[-0.5,1],[0.5,1]];
+  function rimInside(a, b, pad) {
+    for (const [u, v] of RIM) {
+      if (circleHitsBar(a.cx + a.tx * a.hl * u + a.nx * a.ht * v, a.cy + a.ty * a.hl * u + a.ny * a.ht * v, pad, b)) return true;
+    }
+    return false;
+  }
+  function barsOverlap(a, b, pad) {
+    const far = a.reach + b.reach + pad;
+    if (Math.abs(a.cx - b.cx) > far || Math.abs(a.cy - b.cy) > far) return false;
+    return rimInside(a, b, pad) || rimInside(b, a, pad);
+  }
+  function arcSamples(x, y, vx, vy, d) {
+    const top = Math.max(Math.hypot(vx, vy), Math.hypot(vx, vy + G * d));
+    const n = clamp(Math.ceil((d * top) / 9), 6, 90), out = new Float32Array((n + 1) * 2);
+    for (let k = 0; k <= n; k++) {
+      const s = (d * k) / n;
+      out[k * 2] = x + vx * s; out[k * 2 + 1] = y + vy * s + 0.5 * G * s * s;
+    }
+    return out;
+  }
+  function arcHits(arc, b, r) {
+    for (let k = 0; k < arc.length; k += 2) if (circleHitsBar(arc[k], arc[k + 1], r, b)) return true;
+    return false;
+  }
+
+  /**
+   * A wire rail from one key toward the next, for long waits. The marble leaves the
+   * key along the rail, rolls down it gaining speed as v² = v₀² + κ·(drop), flies off
+   * the lip and lands on the next key on time. κ is whatever makes the timing exact;
+   * a ball rolling without slipping would have κ = (10/7)·g, and shapes that need
+   * something close to that are preferred.
+   */
+  function solveRail(x0, y0, x1, y1, d, lo, hi) {
+    const KP = (10 / 7) * G, N = 36;
+    let best = null;
+    const xs = new Float32Array(N + 1), ys = new Float32Array(N + 1), ds = new Float32Array(N + 1);
+    for (const T2 of [0.3, 0.36]) {
+      const T1 = d - T2;
+      if (T1 < 0.4) continue;
+      for (const vr of [380, 460, 540, 620, 700]) for (const d1 of [1, -1]) {
+        const rvx = d1 * vr * 0.978, rvy = vr * 0.208;                 // off the lip 12° below level
+        const rx = x1 - rvx * T2, ry = y1 - rvy * T2 - 0.5 * G * T2 * T2;
+        if (rx < lo || rx > hi || ry - y0 < 26) continue;
+        for (const d0 of [1, -1]) for (const hk of [0.3, 0.45, 0.65]) {
+          const span = Math.hypot(rx - x0, ry - y0), turn = d0 !== d1 || (rx - x0) * d0 < 0;
+          const h0 = Math.max(60, span * hk) * (turn ? 1.7 : 1), h1 = Math.max(60, span * hk) * (turn ? 1.3 : 1);
+          const ax = x0 + d0 * 0.985 * h0, ay = y0 + 0.17 * h0, bx = rx - d1 * 0.978 * h1, by = ry - 0.208 * h1;
+          let ok = true, L = 0, pa = 0;
+          for (let k = 0; k <= N && ok; k++) {
+            const t = k / N, u = 1 - t;
+            xs[k] = u * u * u * x0 + 3 * u * u * t * ax + 3 * u * t * t * bx + t * t * t * rx;
+            ys[k] = u * u * u * y0 + 3 * u * u * t * ay + 3 * u * t * t * by + t * t * t * ry;
+            if (xs[k] < lo || xs[k] > hi) ok = false;
+            if (k) {
+              if (ys[k] < ys[k - 1] - 0.4) ok = false;
+              ds[k] = Math.hypot(xs[k] - xs[k - 1], ys[k] - ys[k - 1]); L += ds[k];
+              const an = Math.atan2(ys[k] - ys[k - 1], xs[k] - xs[k - 1]);
+              if (k > 1) { let da = Math.abs(an - pa); if (da > Math.PI) da = 2 * Math.PI - da; if (da * 34 > ds[k] + 1) ok = false; }   // no bend tighter than a 34 px radius
+              pa = an;
+            }
+          }
+          if (!ok || L / vr > T1) continue;
+          const kmax = (vr * vr - 55 * 55) / (ry - y0);
+          const time = (kap) => {
+            let T = 0, vp = Math.sqrt(vr * vr - kap * (ry - y0));
+            for (let k = 1; k <= N; k++) { const v = Math.sqrt(Math.max(1, vr * vr - kap * (ry - ys[k]))); T += ds[k] / ((v + vp) / 2); vp = v; }
+            return T;
+          };
+          if (time(kmax) < T1) continue;
+          let a = 0, b = kmax;
+          for (let it = 0; it < 14; it++) { const m = (a + b) / 2; if (time(m) < T1) a = m; else b = m; }
+          const kap = (a + b) / 2;
+          const cost = 22 * Math.abs(Math.log(Math.max(kap, 20) / (0.6 * KP))) + Math.abs(L - 330) * 0.12 + (turn ? 90 : 0);
+          if (best && best.cost <= cost) continue;
+          const pts = new Float32Array((N + 1) * 2), ts = new Float32Array(N + 1);
+          let vp = Math.sqrt(vr * vr - kap * (ry - y0));
+          const v0 = vp;
+          for (let k = 0; k <= N; k++) {
+            pts[k * 2] = xs[k]; pts[k * 2 + 1] = ys[k];
+            if (k) { const v = Math.sqrt(Math.max(1, vr * vr - kap * (ry - ys[k]))); ts[k] = ts[k - 1] + ds[k] / ((v + vp) / 2); vp = v; }
+          }
+          const scale = T1 / ts[N];
+          for (let k = 0; k <= N; k++) ts[k] *= scale;
+          best = { cost, pts, ts, T1, T2, kap, len: L, v0: [d0 * 0.985 * v0, 0.17 * v0], pr: [rx, ry], vr: [rvx, rvy], vEnd: [rvx, rvy + G * T2] };
+        }
+      }
+    }
+    if (best) {
+      // Everything the marble sweeps through, for the collision checks: the rail, then the hop.
+      const hop = arcSamples(best.pr[0], best.pr[1], best.vr[0], best.vr[1], best.T2);
+      const dense = [];
+      for (let k = 0; k < N; k++) for (let j = 0; j < 2; j++) { const f = j / 2; dense.push(best.pts[k * 2] * (1 - f) + best.pts[k * 2 + 2] * f, best.pts[k * 2 + 1] * (1 - f) + best.pts[k * 2 + 3] * f); }
+      best.samples = new Float32Array(dense.length + hop.length);
+      best.samples.set(dense); best.samples.set(hop, dense.length);
+    }
+    return best;
+  }
+
+  /**
+   * Choose where each bar of one voice goes. Pitch says roughly where (low on
+   * the left, like a keyboard); a beam search then nudges bars sideways until
+   * no marble flies through a bar, no two bars touch, and nothing leaves its lane.
+   */
+  function layoutVoice(ev, o, KEEP, SPREAD) {
+    const N = ev.length, NEAR = 14;
+    const lo = o.x0 + o.R + 5, hi = o.x1 - o.R - 5;
+    const step = clamp((hi - lo) / (SPREAD * 1.5), 8, 30);
+    const cupW = o.R + 9;
+    let beam = [{ xs: [], bars: [], arcs: [], rails: [], vin: [0, G * FALL], cost: 0, exit: 1 }];
+    for (let i = 0; i <= N; i++) {
+      const last = i === N, e = ev[i], memo = new Map();
+      let cands;
+      if (last) cands = [1, -1, 0.6, -0.6, 1.5, -1.5, 0.3, -0.3];
+      else {
+        const seen = new Set(); cands = [];
+        for (let k = 0; k <= SPREAD; k++) for (const sgn of k ? [1, -1] : [1]) {
+          const x = Math.round(clamp(e.base + sgn * k * step, lo, hi));
+          if (!seen.has(x)) { seen.add(x); cands.push(x); }
+        }
+      }
+      const next = new Map();
+      for (const s of beam) for (const c of cands) {
+        let cost = s.cost, bar = null, arc = null, vin = s.vin, x = c, cup = null, dbg = s.dbg, rail = null;
+        if (i === 0) cost += Math.abs(x - e.base) * 0.3;
+        else {
+          const a = ev[i - 1], ax = s.xs[i - 1];
+          let d, vx, vy;
+          if (last) { d = HOP_T; vx = c * HOP_VX; vy = HOP_VY; x = ax + vx * d; cost += Math.abs(Math.abs(c) - 1) * 20; }
+          else { d = e.t - a.t; vx = (x - ax) / d; vy = (e.y - a.y) / d - (G * d) / 2; cost += Math.abs(x - e.base); }
+          if (!last && e.viaRail) {
+            const mk = ax * 4096 + x;
+            if (!memo.has(mk)) memo.set(mk, solveRail(ax, a.y, x, e.y, d, lo, hi));
+            rail = memo.get(mk);
+            if (rail) { vx = rail.v0[0]; vy = rail.v0[1]; cost += rail.cost; } else cost += 7000;
+          }
+          const li = Math.hypot(s.vin[0], s.vin[1]), lv = Math.hypot(vx, vy) || 1;
+          let nx = vx / lv - s.vin[0] / li, ny = vy / lv - s.vin[1] / li;
+          const nl = Math.hypot(nx, ny);
+          if (nl < 0.06) { cost += 4000; nx = 0; ny = -1; } else { nx /= nl; ny /= nl; }
+          if (ny > -0.45) cost += 60 + (ny + 0.45) * 1400;      // a wall, not a bar
+          else if (ny > -0.75) cost += (ny + 0.75) * 160;       // steeper than looks comfortable
+          arc = rail ? rail.samples : arcSamples(ax, a.y, vx, vy, d);
+          const nb = s.bars.length, na = s.arcs.length;
+          // Try the key centred under the marble first; if that's in the way, slide
+          // it along its own length so the marble strikes nearer one end.
+          const along = vx * -ny + vy * nx >= 0 ? 1 : -1;
+          let bad = 99, why = "";
+          for (const sh of [0, -0.4, 0.4, -0.7]) {
+            const tb = makeBar(ax, a.y, nx, ny, a.len, a.thick, o.R, sh * along * a.len * 0.5);
+            const ex = Math.abs(tb.tx) * tb.hl + Math.abs(tb.nx) * tb.ht;
+            let n = sh ? 0.02 : 0, w = "";
+            if (tb.cx - ex < o.x0 + 3 || tb.cx + ex > o.x1 - 3) { n++; w += "edge "; }
+            for (let j = Math.max(0, nb - NEAR); j < nb; j++) {
+              if (barsOverlap(tb, s.bars[j], 6)) { n++; w += "overlap "; }
+              if (arcHits(arc, s.bars[j], o.R + 2.5)) { n++; w += "arc-old "; }
+            }
+            if (arcHits(arc, tb, o.R - 2.5)) { n++; w += "arc-own "; }
+            for (let j = Math.max(0, na - 7); j < na; j++) if (arcHits(s.arcs[j], tb, j === na - 1 ? o.R - 2.5 : o.R + 2.5)) { n++; w += "into "; }
+            if (n < bad) { bad = n; bar = tb; why = w; }
+            if (n < 1) break;
+          }
+          if (last) {
+            const cy = a.y + vy * d + 0.5 * G * d * d;
+            cup = { x, y: cy, t: a.t + d, w: o.R + 6 };
+            const box = { cx: x, cy: cy - 5, tx: 1, ty: 0, nx: 0, ny: -1, hl: cupW, ht: o.R + 10, reach: cupW + o.R + 12 };
+            if (x - cupW < o.x0 + 3 || x + cupW > o.x1 - 3) { bad++; why += "cup-edge "; }
+            if (barsOverlap(box, bar, 4)) { bad++; why += "cup-key "; }
+            for (let j = Math.max(0, nb - NEAR); j < nb; j++) if (barsOverlap(box, s.bars[j], 4)) { bad++; why += "cup-keys "; }
+            for (let j = Math.max(0, na - 7); j < na; j++) if (arcHits(s.arcs[j], box, o.R)) { bad++; why += "cup-arc "; }
+          }
+          cost += bad * 2500;
+          if (bad >= 1) dbg = (s.dbg || []).concat(i + ": " + why);
+          vin = rail ? rail.vEnd : [vx, vy + G * d];
+        }
+        const key = last ? c : x * 4096 + (i ? Math.round(s.xs[i - 1]) : 0);
+        const old = next.get(key);
+        if (!old || old.cost > cost) next.set(key, { s, x, bar, arc, vin, cost, cup, c, dbg, rail });
+      }
+      beam = [...next.values()].sort((a, b) => a.cost - b.cost).slice(0, KEEP).map((q) => ({
+        xs: last ? q.s.xs : q.s.xs.concat(q.x),
+        bars: q.bar ? q.s.bars.concat(q.bar) : q.s.bars,
+        arcs: q.arc ? q.s.arcs.concat(q.arc) : q.s.arcs,
+        rails: q.arc ? q.s.rails.concat(q.rail) : q.s.rails,
+        vin: q.vin, cost: q.cost, cup: q.cup, exit: q.c, dbg: q.dbg,
+      }));
+    }
+    return beam[0];
+  }
+
+  function build(song, speed) {
+    const beat = 60 / (song.bpm * speed);
+    const withBass = bassOn && song.bass && song.bass.length;
+    const timed = (list) => {
+      let b = 0; const out = [];
+      for (const [midi, len] of list) { if (midi) out.push({ midi, beat: b, t: FALL + b * beat, dur: len * beat }); b += len; }
+      return out;
+    };
+    const mel = timed(song.notes), bas = withBass ? timed(song.bass) : [];
+    const gaps = mel.slice(1).map((n, i) => n.t - mel[i].t).sort((a, b) => a - b);
+    const typical = gaps[gaps.length >> 1] || 0.5;
+    const sink = clamp(105 / typical, 185, 340);                 // px the run descends per second
+    const ks = clamp((typical * sink) / 72, 0.7, 1);          // quick tunes get smaller keys
+    const y0 = TOP + 0.5 * G * FALL * FALL;
+    const yAt = (t) => y0 + sink * (t - FALL);
+
+    const FW = view.FW, sc = FW < 520 ? 0.8 : 1;
+    const LW = withBass ? clamp(FW * 0.32, 124, 250) : 0;
+    const names = song.sharps ? SHARPS : FLATS;
+
+    const parts = song.parts || [[0, "wood", "Marimba"]];
+    const FACE = { wood: "#c98c55", white: "#f3efe6", vibe: "#b4b9bf", bell: "#d3a13a" };
+    const RAINBOW = ["#e02a1c", "#f2761f", "#f4c020", "#5aa832", "#17988f", "#2a62d6", "#7d3fc0"];
+    function voice(notes, o, rails) {
+      const mids = notes.map((n) => n.midi);
+      const lo = Math.min(...mids), hi = Math.max(...mids), span = Math.max(1, hi - lo);
+      const inner = o.x1 - o.x0 - 2 * o.pad, pps = Math.min(o.pps, inner / span);
+      const mid = (o.x0 + o.x1) / 2;
+      const ev = [], ranks = [...new Set(mids)].sort((a, b) => a - b);
+      notes.forEach((n, i) => {
+        const frac = (n.midi - lo) / span, paint = PAINT[n.midi % 12];
+        let kind = "wood";
+        if (!o.low) for (const p of parts) if (n.beat >= p[0] - 1e-6) kind = p[1];
+        const round = kind === "tube" || kind === "bell";
+        // Tubes and bells stand end-on to the wall, so in the plane of the run they are circles.
+        const size = round ? (kind === "tube" ? 36 - 10 * frac : 23) * ks * (sc < 1 ? 0.9 : 1) : 0;
+        const face = FACE[kind] || paint;
+        const hue = RAINBOW[ranks.indexOf(n.midi) % RAINBOW.length];
+        const e = { t: n.t, dur: n.dur, midi: n.midi, kind, round, frac, y: yAt(n.t), base: mid + (n.midi - (lo + hi) / 2) * pps,
+          len: round ? size : o.len * (1 - 0.3 * frac) * (o.low ? 1.3 : 1.12), thick: round ? size : (kind === "wood" ? 11 : kind === "white" ? 10 : 8) * Math.max(0.85, ks),
+          color: paint, face, hue, dark: shade(face, 0.6), lite: tint(face, 0.3), name: names[n.midi % 12] };
+        if (!o.low) e.base = clamp(e.base + inner * 0.16 * Math.sin(n.t * 0.8 + 0.6), o.x0 + o.pad, o.x1 - o.pad);   // a slow sweep, so the run curves
+        const prev = ev[ev.length - 1];
+        if (prev) {
+          const gap = n.t - prev.t;
+          // A long wait: a wire rail to roll down or, failing that, felt to bounce on, so no arc outgrows the screen.
+          if (rails && gap >= (o.low ? MAXGAP : 0.8) && gap < 2.4) e.viaRail = true;
+          else if (gap > MAXGAP) {
+            const k = Math.ceil(gap / MAXGAP), pb = prev.base;
+            for (let j = 1; j < k; j++) {
+              const tt = prev.t + (gap * j) / k;
+              ev.push({ t: tt, felt: true, y: yAt(tt), base: pb + ((e.base - pb) * j) / k, len: o.len * 0.55, thick: 12, color: "#ebe4d8", face: "#ebe4d8", dark: "#a2998b", lite: "#ffffff", kind: "felt" });
+            }
+          }
+        }
+        ev.push(e);
+      });
+      let best = layoutVoice(ev, o, 8, 8);
+      if (best.cost >= 2400) { const wider = layoutVoice(ev, o, 22, 13); if (wider.cost < best.cost) best = wider; }
+      if (best.cost >= 2400 && rails) { const plain = voice(notes, o, false); if (plain.flaws * 2400 < best.cost) return plain; }
+      const hits = ev.map((e, i) => {
+        const b = ev[i + 1];
+        let vout;
+        if (b) { const d = b.t - e.t; vout = [(best.xs[i + 1] - best.xs[i]) / d, (b.y - e.y) / d - (G * d) / 2]; }
+        else vout = [best.exit * HOP_VX, HOP_VY];
+        const rail = best.rails[i] || null;
+        if (rail) vout = rail.v0;
+        return { ...e, x: best.xs[i], bar: best.bars[i], vout, rail, seed: i * 7.13 + o.R };
+      });
+      let vin = G * FALL;
+      hits.forEach((h, i) => {
+        if (i) { const p = hits[i - 1]; vin = p.rail ? Math.hypot(p.rail.vEnd[0], p.rail.vEnd[1]) : Math.hypot(p.vout[0], p.vout[1] + G * (h.t - p.t)); }
+        h.vin = vin;
+        h.amp = clamp(vin / 1300, 0.55, 1.25);
+        h.side = h.vout[0] >= 0 ? 1 : -1;
+      });
+      const v = { ...o, hits, chute: { x: hits[0].x, y: hits[0].y - 0.5 * G * FALL * FALL }, tRel: hits[0].t - FALL, cup: best.cup, flaws: Math.floor(best.cost / 2400), dbg: best.dbg };
+      const p = new Path2D();
+      for (let t = v.tRel, first = true; t <= v.cup.t; t += 1 / 90, first = false) {
+        const m = marbleAt(v, t); first ? p.moveTo(m[0], m[1]) : p.lineTo(m[0], m[1]);
+      }
+      v.path = p;
+      return v;
+    }
+
+    const voices = [voice(mel, { x0: LW, x1: FW, pad: 44 * sc, pps: 42, len: 88 * sc * ks, thick: 24 * ks, R: sc < 1 ? 14 : 17,
+      glass: "255,214,150", body: "#ff9a1f", swirl: "#e2470f", low: false }, true)];
+    if (withBass) voices.push(voice(bas, { x0: 0, x1: LW, pad: 30, pps: 9, len: Math.min(64, LW * 0.31) * ks, thick: 26 * ks, R: sc < 1 ? 15 : 18,
+      glass: "216,190,255", body: "#8a3ff0", swirl: "#3d2bd0", low: true }, true));
+
+    // Everything that makes a sound, in order.
+    const events = [];
+    voices.forEach((v, vi) => {
+      for (const h of v.hits) {
+        const pan = (h.x / FW) * 1.1 - 0.55;
+        events.push(h.felt ? { t: h.t, felt: 0.32, pan } : { t: h.t, midi: h.midi, vel: clamp(0.5 + h.vin / 2600, 0.5, 1), pan, kind: h.kind, low: v.low });
+      }
+      events.push({ t: v.cup.t, felt: 0.7, pan: (v.cup.x / FW) * 1.1 - 0.55 });
+    });
+    events.sort((a, b) => a.t - b.t);
+
+    const all = voices.flatMap((v) => v.hits.filter((h) => !h.felt));
+    const tLast = Math.max(...all.map((h) => h.t + Math.min(h.dur, 1.2)));
+    const cupT = Math.max(...voices.map((v) => v.cup.t));
+    const rollLo = Math.min(...all.map((h) => h.midi)), rollHi = Math.max(...all.map((h) => h.midi));
+    const y1 = Math.max(...voices.map((v) => v.cup.y)) + 60;
+    // Bars pop in from the top when a run is first shown.
+    const order = voices.flatMap((v) => v.hits).sort((a, b) => a.y - b.y);
+    order.forEach((h, i) => { h.rank = Math.min(i, 46); });
+    const sections = parts.map((p, i) => ({ t: FALL + p[0] * beat, title: `${i + 1}. ${p[2]}` }));
+    return { song, voices, events, sections, yAt, sink, LW, tLast, cupT, end: cupT + 1.0, rollLo, rollHi, y0: TOP - 96, y1,
+      count: all.length, born: performance.now() / 1000, flaws: voices.reduce((a, v) => a + v.flaws, 0) };
+  }
+
+  /** Where one marble is at time t: [x, y, vx, vy, index of the bar it last hit]. */
+  function marbleAt(v, t) {
+    const h = v.hits;
+    if (t <= v.tRel) return [v.chute.x, v.chute.y, 0, 0, -1];
+    if (t < h[0].t) { const s = t - v.tRel; return [v.chute.x, v.chute.y + 0.5 * G * s * s, 0, G * s, -1]; }
+    if (t >= v.cup.t) {
+      const s = t - v.cup.t;
+      return [v.cup.x, v.cup.y - Math.abs(Math.sin(s * 15)) * 8 * Math.exp(-s * 6), 0, 0, h.length];
+    }
+    let lo = 0, hi = h.length - 1;
+    while (lo < hi) { const m = (lo + hi + 1) >> 1; if (h[m].t <= t) lo = m; else hi = m - 1; }
+    const a = h[lo], r = a.rail;
+    let s = t - a.t;
+    if (r) {
+      if (s < r.T1) {
+        let i = 0, j = r.ts.length - 1;
+        while (j - i > 1) { const m = (i + j) >> 1; if (r.ts[m] <= s) i = m; else j = m; }
+        const dt = r.ts[j] - r.ts[i] || 1e-6, f = (s - r.ts[i]) / dt;
+        const ax = r.pts[i * 2], ay = r.pts[i * 2 + 1], bx = r.pts[j * 2], by = r.pts[j * 2 + 1];
+        return [ax + (bx - ax) * f, ay + (by - ay) * f, (bx - ax) / dt, (by - ay) / dt, lo];
+      }
+      s -= r.T1;
+      return [r.pr[0] + r.vr[0] * s, r.pr[1] + r.vr[1] * s + 0.5 * G * s * s, r.vr[0], r.vr[1] + G * s, lo];
+    }
+    return [a.x + a.vout[0] * s, a.y + a.vout[1] * s + 0.5 * G * s * s, a.vout[0], a.vout[1] + G * s, lo];
+  }
+
+  // ── Playback, on the audio clock ───────────────────────────────────────────
+  let mode = "idle";          // idle · play · done
+  let startAt = 0, scheduled = 0, camY = 0, doneAt = 0, frozen = null;
+  const LEAD = 0.4;           // a breath before the gate opens
+  const clock = () => (frozen !== null ? frozen : mode === "play" ? audioNow() - startAt : mode === "done" ? run.end + 5 : -LEAD);
+
+  function setUI() {
+    const playing = mode === "play";
+    $("toggle").textContent = playing ? "Stop" : mode === "done" ? "Again" : "Play";
+    const b = $("play");
+    b.hidden = playing || pianoOn || exporting;
+    b.classList.toggle("again", mode === "done");
+    b.disabled = loading;
+    b.textContent = loading ? "Loading the instruments…" : mode === "done" ? "↻ Play it again" : run && run.voices.length > 1 ? "▶ Drop the marbles" : "▶ Drop the marble";
+    wake();
+  }
+  function silence() {
+    if (playBus && ac) {
+      const b = playBus; playBus = null;
+      b.gain.setTargetAtTime(0, ac.currentTime, 0.04);
+      setTimeout(() => b.disconnect(), 500);
+    }
+  }
+  let loading = false;
+  async function play() {
+    audio();
+    if (!soundsReady(run)) {
+      loading = true; setUI();
+      await Promise.race([loadFor(run), new Promise((r) => setTimeout(r, 7000))]);
+      loading = false;
+    }
+    silence();
+    playBus = makeBus();
+    startAt = ac.currentTime + LEAD;
+    scheduled = 0; frozen = null;
+    mode = "play";
+    setSheet(false);
+    setUI();
+  }
+  function stop() {
+    silence();
+    mode = "idle"; frozen = null;
+    setUI();
+  }
+  function finish() {
+    mode = "done"; doneAt = performance.now() / 1000;
+    setUI(); placeAgain();
+  }
+  function schedule() {
+    if (mode !== "play" || !ac || !playBus) return;
+    const horizon = ac.currentTime + 0.28;
+    const ev = run.events;
+    while (scheduled < ev.length && startAt + ev[scheduled].t < horizon) {
+      const e = ev[scheduled++], when = startAt + e.t;
+      if (when < ac.currentTime - 0.05) continue;         // too late to be in time: stay silent
+      strike(e, when, playBus);
+    }
+    if (ac.currentTime - startAt > run.end) finish();
+  }
+  setInterval(schedule, 25);
+  document.addEventListener("visibilitychange", () => { if (document.hidden && mode === "play") stop(); });
+
+  // ── Drawing ────────────────────────────────────────────────────────────────
+  let showPath = true;
+
+  function rr(x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
+  }
+  const WALL = "#fdf2e3";
+  // Everything stands a little off the wall and is seen slightly from one side:
+  // MOUNT is where a key's rod meets the wall, DEPTH its visible thickness, CAST its shadow.
+  const MOUNT = [-27, 21], DEPTH = [-5, 4.5], CAST = [-24, 22];
+  const sprites = new Map();
+  /** A soft shadow for a rounded block w×h, drawn once and reused. */
+  function softShadow(w, h, r) {
+    const key = `${Math.round(w)}x${Math.round(h)}x${r}`;
+    let c = sprites.get(key);
+    if (c) return c;
+    const k = 2, pad = 16;
+    c = document.createElement("canvas");
+    c.width = Math.ceil((w + pad * 2) * k); c.height = Math.ceil((h + pad * 2) * k);
+    const g = c.getContext("2d");
+    g.shadowColor = "rgb(92,52,22)"; g.shadowBlur = 9 * k; g.shadowOffsetX = c.width;
+    g.scale(k, k);
+    g.beginPath();
+    if (g.roundRect) g.roundRect(pad - c.width / k, pad, w, h, r); else g.rect(pad - c.width / k, pad, w, h);
+    g.fill();
+    c.pad = pad; c.k = k;
+    sprites.set(key, c);
+    return c;
+  }
+  function castShadow(x, y, w, h, r, ang, alpha) {
+    const c = softShadow(w, h, r);
+    ctx.save();
+    ctx.translate(x, y); if (ang) ctx.rotate(ang);
+    ctx.globalAlpha *= alpha;
+    ctx.drawImage(c, -w / 2 - c.pad, -h / 2 - c.pad, c.width / c.k, c.height / c.k);
+    ctx.restore();
+  }
+
+  /** The stairwell wall, from y=top to y=bot, with its painted stripes where there's room. */
+  function drawBoard(top, bot, plain) {
+    const FW = view.FW, h = bot - top;
+    if (plain) { ctx.fillStyle = WALL; ctx.fillRect(0, top, FW, h); return; }
+    const paints = [BRICK, PERSIMMON, MUSTARD];
+    const left = view.ox, right = W - view.ox - FW * view.z;
+    for (let k = 0; k < 3; k++) {
+      ctx.fillStyle = paints[k];
+      if (left - (exporting ? 0 : inset.l) > 44) ctx.fillRect(-52 - k * 30 - 22, top, 22, h);
+      if (right > 44) ctx.fillRect(FW + 52 + k * 30, top, 22, h);
+    }
+  }
+
+  function keyState(h, t) {
+    const age = t - h.t;
+    let dip = 0, wob = 0, flash = 0;
+    if (age >= 0 && age < 1.3) {
+      const e = Math.exp(-age * 6);
+      flash = Math.exp(-age * 8);
+      if (!still()) { dip = e * Math.sin(age * 30) * 6 * h.amp; wob = e * Math.sin(age * 37) * 0.045 * h.side * h.amp; }
+    }
+    return [h.bar.cx - h.bar.nx * dip, h.bar.cy - h.bar.ny * dip, h.bar.ang + wob, flash];
+  }
+  /** What a key leaves on the wall: its shadow, its mount, and the rod that holds it out. */
+  function drawKeyBack(h, t, pop) {
+    const b = h.bar, [cx, cy, ang] = keyState(h, t), m = h.felt ? 0.7 : b.ht > 13 ? 1.15 : 1;
+    castShadow(cx + CAST[0] * m, cy + CAST[1] * m, b.hl * 2 * pop, b.ht * 2 * pop, 6, ang, 0.3);
+    const mx = b.cx + MOUNT[0] * m, my = b.cy + MOUNT[1] * m;
+    ctx.fillStyle = "rgba(92,52,22,0.2)"; ctx.beginPath(); ctx.arc(mx - 2.5, my + 3, 6.5, 0, TAU); ctx.fill();
+    ctx.lineCap = "round";
+    ctx.strokeStyle = "rgba(92,52,22,0.13)"; ctx.lineWidth = 4;
+    ctx.beginPath(); ctx.moveTo(mx - 7, my + 8); ctx.lineTo(cx + CAST[0] * m * 0.9, cy + CAST[1] * m * 0.9); ctx.stroke();
+    ctx.strokeStyle = "#8f887c"; ctx.lineWidth = 4.2;
+    ctx.beginPath(); ctx.moveTo(mx, my); ctx.lineTo(cx, cy); ctx.stroke();
+    ctx.strokeStyle = "#ece8e0"; ctx.lineWidth = 1.6;
+    ctx.beginPath(); ctx.moveTo(mx - 0.6, my - 1); ctx.lineTo(cx - 0.6, cy - 1); ctx.stroke();
+    ctx.fillStyle = "#a59e92"; ctx.beginPath(); ctx.arc(mx, my, 6, 0, TAU); ctx.fill();
+    ctx.fillStyle = "#dedad1"; ctx.beginPath(); ctx.arc(mx + 0.6, my - 0.8, 4.6, 0, TAU); ctx.fill();
+    ctx.fillStyle = "#fbfaf6"; ctx.beginPath(); ctx.arc(mx + 1.6, my - 2, 1.7, 0, TAU); ctx.fill();
+  }
+  /** The key itself: a chunky painted block, lit from the upper right. */
+  function drawBar(h, t, pop) {
+    const b = h.bar, [cx, cy, ang, flash] = keyState(h, t), L = b.hl * 2, T = b.ht * 2, r = h.round ? b.ht : h.felt ? 4 : 6;
+    ctx.fillStyle = h.dark;
+    for (let k = 3; k >= 1; k--) {
+      ctx.save();
+      ctx.translate(cx + (DEPTH[0] * k) / 3, cy + (DEPTH[1] * k) / 3); ctx.rotate(ang); ctx.scale(pop, pop);
+      rr(-b.hl, -b.ht, L, T, r); ctx.fill();
+      ctx.restore();
+    }
+    ctx.save();
+    ctx.translate(cx, cy); ctx.rotate(ang); ctx.scale(pop, pop);
+    ctx.fillStyle = h.face; rr(-b.hl, -b.ht, L, T, r); ctx.fill();
+    if (h.kind === "wood") {
+      // Rosewood: a few lines of grain, and a band of paint at each end to name the note.
+      ctx.save(); ctx.clip();
+      ctx.strokeStyle = "rgba(92,48,20,0.34)"; ctx.lineWidth = 1.3;
+      for (let g = 0; g < 4; g++) {
+        const gy = -b.ht + ((g + 0.7) * T) / 4.3, w = rnd(h.seed, g + 60) * 6;
+        ctx.beginPath(); ctx.moveTo(-b.hl, gy);
+        ctx.bezierCurveTo(-b.hl * 0.4, gy - 2.5 + w * 0.5, b.hl * 0.3, gy + 2.5 - w * 0.4, b.hl, gy - 1);
+        ctx.stroke();
+      }
+      ctx.fillStyle = h.color; ctx.fillRect(-b.hl, -b.ht, 8, T); ctx.fillRect(b.hl - 8, -b.ht, 8, T);
+      ctx.restore();
+    } else if (h.kind === "tube") {
+      // Looking down the bore of a plastic tube.
+      ctx.fillStyle = h.dark; ctx.beginPath(); ctx.arc(0, 0, b.ht * 0.62, 0, TAU); ctx.fill();
+    } else if (h.kind === "vibe" || h.kind === "bell") {
+      // Metal: a broad band of sky along the top, a thin line of floor along the bottom.
+      ctx.save(); ctx.clip();
+      ctx.fillStyle = "rgba(255,255,255,0.3)"; ctx.fillRect(-b.hl, -b.ht, L, T * 0.44);
+      ctx.fillStyle = "rgba(255,255,255,0.5)"; ctx.fillRect(-b.hl, -b.ht + T * 0.44, L, 1.6);
+      ctx.fillStyle = "rgba(40,20,10,0.16)"; ctx.fillRect(-b.hl, b.ht - 3.5, L, 3.5);
+      ctx.restore();
+    }
+    // The struck edge catches the light.
+    ctx.strokeStyle = h.lite; ctx.lineWidth = 2.4; ctx.lineCap = "round";
+    ctx.beginPath(); ctx.moveTo(-b.hl + r, -b.ht + 2.2); ctx.lineTo(b.hl - r, -b.ht + 2.2); ctx.stroke();
+    if (flash > 0.03) { ctx.globalAlpha = flash * 0.75; ctx.fillStyle = "#fff8ea"; rr(-b.hl, -b.ht, L, T, r); ctx.fill(); ctx.globalAlpha = 1; }
+    if (!h.felt && !h.round) {
+      // Two screws, at the points where a ringing bar stays still.
+      for (const px of [-L * 0.27, L * 0.27]) {
+        ctx.fillStyle = h.dark; ctx.beginPath(); ctx.arc(px - 0.6, 1.8, 3.6, 0, TAU); ctx.fill();
+        ctx.fillStyle = "#cfcabf"; ctx.beginPath(); ctx.arc(px, 1, 3, 0, TAU); ctx.fill();
+        ctx.fillStyle = "#fbfaf6"; ctx.beginPath(); ctx.arc(px + 0.8, 0.2, 1.2, 0, TAU); ctx.fill();
+      }
+    }
+    ctx.restore();
+  }
+
+  /** The moment of a hit: a ring and a few flecks of paint. */
+  function drawHit(h, v, t) {
+    const age = t - h.t;
+    if (still() || age < 0 || age > 0.45) return;
+    const b = h.bar, k = age / 0.45, e = 1 - Math.pow(1 - k, 3);
+    ctx.globalAlpha = (1 - k) * 0.8; ctx.strokeStyle = h.felt ? h.dark : h.color; ctx.lineWidth = 1 + 3.5 * (1 - k);
+    ctx.beginPath(); ctx.arc(h.x, h.y, v.R + 3 + e * 30 * h.amp, 0, TAU); ctx.stroke();
+    ctx.globalAlpha = 1;
+    const px = h.x - b.nx * v.R, py = h.y - b.ny * v.R, a0 = Math.atan2(b.ny, b.nx);
+    const n = h.felt ? 3 : 7;
+    for (let j = 0; j < n; j++) {
+      const r1 = rnd(h.seed, j), r2 = rnd(h.seed, j + 31);
+      const a = a0 + (r1 - 0.5) * 2.6, sp = (100 + r2 * 250) * h.amp, size = (1.8 + r2 * 2.6) * (1 - k * k);
+      ctx.fillStyle = j % 3 === 0 ? h.dark : j % 3 === 1 ? h.color : h.lite;
+      ctx.beginPath(); ctx.arc(px + Math.cos(a) * sp * age, py + Math.sin(a) * sp * age + 500 * age * age, size, 0, TAU); ctx.fill();
+    }
+  }
+
+  function drawGuide(v, t) {
+    const a = Math.max(v.tRel, t), b = Math.min(v.cup.t, t + 1.5);
+    if (b <= a) return;
+    ctx.strokeStyle = "rgba(90,58,38,0.36)"; ctx.lineWidth = 2.2; ctx.lineCap = "round";
+    ctx.setLineDash([0.1, 9]);
+    ctx.beginPath();
+    const q = 1 / 120;
+    for (let s = Math.ceil(a / q) * q, first = true; s < b; s += q, first = false) {
+      const m = marbleAt(v, s); first ? ctx.moveTo(m[0], m[1]) : ctx.lineTo(m[0], m[1]);
+    }
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  /** A glass marble with a twist of colour inside. */
+  function drawMarble(v, m, t) {
+    const [x, y, vx, vy, i] = m, R = v.R, calm = still();
+    castShadow(x + CAST[0], y + CAST[1], R * 2, R * 2, R, 0, 0.3);
+    ctx.save();
+    ctx.translate(x, y);
+    if (!calm) {
+      if (i >= 0 && i < v.hits.length) {
+        // Squash against the key it just hit.
+        const h = v.hits[i], q = Math.exp(-(t - h.t) * 24) * 0.3 * h.amp;
+        if (q > 0.01) {
+          const a = Math.atan2(h.bar.ny, h.bar.nx);
+          ctx.translate(-h.bar.nx * q * R, -h.bar.ny * q * R);
+          ctx.rotate(a); ctx.scale(1 - q, 1 + q * 0.7); ctx.rotate(-a);
+        }
+      }
+      const sp = Math.hypot(vx, vy);
+      if (sp > 60) { const a = Math.atan2(vy, vx), s = 1 + Math.min(0.14, sp / 12000); ctx.rotate(a); ctx.scale(s, 1 / s); ctx.rotate(-a); }
+    }
+    const g = ctx.createRadialGradient(R * 0.3, -R * 0.35, R * 0.1, 0, 0, R);
+    g.addColorStop(0, `rgba(255,255,255,0.96)`); g.addColorStop(0.55, `rgba(${v.glass},0.9)`); g.addColorStop(1, `rgba(${v.glass},0.72)`);
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, 0, R, 0, TAU); ctx.fill();
+    ctx.save();
+    ctx.clip();
+    // The swirl turns as the marble rolls.
+    ctx.rotate(x / (R * 1.5) + t * 1.6);
+    ctx.lineCap = "round";
+    ctx.strokeStyle = v.swirl; ctx.lineWidth = R * 0.42;
+    ctx.beginPath(); ctx.moveTo(-R * 0.55, R * 0.12); ctx.bezierCurveTo(-R * 0.25, -R * 0.7, R * 0.3, R * 0.75, R * 0.5, -R * 0.05); ctx.stroke();
+    ctx.strokeStyle = v.body; ctx.lineWidth = R * 0.36;
+    ctx.beginPath(); ctx.moveTo(-R * 0.5, -R * 0.22); ctx.bezierCurveTo(-R * 0.15, -R * 0.85, R * 0.15, R * 0.5, R * 0.56, R * 0.22); ctx.stroke();
+    ctx.restore();
+    // Glass: a dark rim, light pooling at the bottom, one hard glint.
+    const rim = ctx.createRadialGradient(0, 0, R * 0.62, 0, 0, R);
+    rim.addColorStop(0, "rgba(70,35,20,0)"); rim.addColorStop(1, "rgba(70,35,20,0.42)");
+    ctx.fillStyle = rim; ctx.beginPath(); ctx.arc(0, 0, R, 0, TAU); ctx.fill();
+    ctx.strokeStyle = "rgba(255,255,255,0.7)"; ctx.lineWidth = R * 0.14; ctx.lineCap = "round";
+    ctx.beginPath(); ctx.arc(0, 0, R * 0.74, 1.9, 2.9); ctx.stroke();
+    ctx.fillStyle = "#ffffff"; ctx.beginPath(); ctx.ellipse(R * 0.36, -R * 0.42, R * 0.25, R * 0.15, 0.7, 0, TAU); ctx.fill();
+    ctx.restore();
+  }
+  function drawTrail(v, t) {
+    if (still() || t <= v.tRel || t > v.cup.t + 0.05) return;
+    ctx.fillStyle = v.body;
+    for (let k = 8; k >= 1; k--) {
+      const m = marbleAt(v, Math.max(v.tRel, t - k * 0.011));
+      ctx.globalAlpha = 0.2 * (1 - k / 9);
+      ctx.beginPath(); ctx.arc(m[0], m[1], v.R * (1 - k / 12), 0, TAU); ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  const STEEL = "#a59e92", STEEL_LITE = "#f1eee8";
+  function drawChute(v) {
+    const { x, y } = v.chute, R = v.R, w = R + 5;
+    const top = y - R - 44, bot = y + R + 4;
+    castShadow(x + CAST[0], (top + bot) / 2 + CAST[1], 2 * w, bot - top, 6, 0, 0.26);
+    // A glass tube under a steel funnel.
+    ctx.fillStyle = "rgba(255,255,255,0.6)"; rr(x - w, top, 2 * w, bot - top, 4); ctx.fill();
+    ctx.strokeStyle = "rgba(120,96,74,0.55)"; ctx.lineWidth = 1.6; ctx.stroke();
+    ctx.fillStyle = "rgba(255,255,255,0.9)"; ctx.fillRect(x + w - 6, top + 6, 2.5, bot - top - 12);
+    ctx.beginPath();
+    ctx.moveTo(x - w - 13, top - 20); ctx.lineTo(x + w + 13, top - 20); ctx.lineTo(x + w + 2, top + 4); ctx.lineTo(x - w - 2, top + 4); ctx.closePath();
+    ctx.fillStyle = STEEL; ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(x - w - 13, top - 20); ctx.lineTo(x + w + 13, top - 20); ctx.lineTo(x + w + 9, top - 12); ctx.lineTo(x - w - 9, top - 12); ctx.closePath();
+    ctx.fillStyle = STEEL_LITE; ctx.fill();
+  }
+  function drawGate(v, t) {
+    const { x, y } = v.chute, w = v.R + 5;
+    const open = clamp((t - v.tRel + 0.04) / 0.09);
+    ctx.fillStyle = STEEL; rr(x - w - 5 - open * (2 * w + 2), y + v.R + 1.5, 2 * w + 10, 6, 3); ctx.fill();
+    ctx.fillStyle = STEEL_LITE; rr(x - w - 3 - open * (2 * w + 2), y + v.R + 2.5, 2 * w + 6, 1.8, 1); ctx.fill();
+  }
+  function cupPath(c, R) {
+    const w = c.w, top = c.y - R - 13, bot = c.y + R + 3;
+    ctx.beginPath();
+    ctx.moveTo(c.x - w, top); ctx.lineTo(c.x - w, bot - 8); ctx.quadraticCurveTo(c.x - w, bot, c.x - w + 8, bot);
+    ctx.lineTo(c.x + w - 8, bot); ctx.quadraticCurveTo(c.x + w, bot, c.x + w, bot - 8); ctx.lineTo(c.x + w, top);
+  }
+  function drawCupBack(v) {
+    const c = v.cup;
+    castShadow(c.x + CAST[0], c.y - 5 + CAST[1], 2 * c.w, 2 * v.R + 16, 8, 0, 0.26);
+    ctx.fillStyle = "rgba(255,255,255,0.55)"; cupPath(c, v.R); ctx.fill();
+  }
+  function drawCupFront(v) {
+    ctx.lineCap = "round"; ctx.lineJoin = "round";
+    ctx.strokeStyle = STEEL; ctx.lineWidth = 4.5; cupPath(v.cup, v.R); ctx.stroke();
+    ctx.save(); ctx.translate(0.8, -0.8); ctx.strokeStyle = STEEL_LITE; ctx.lineWidth = 1.4; cupPath(v.cup, v.R); ctx.stroke(); ctx.restore();
+  }
+
+  /** The tune as a tiny piano roll along the top edge. */
+  function drawRoll(t) {
+    const hgt = 40;
+    ctx.fillStyle = PLASTER; ctx.fillRect(0, 0, W, hgt);
+    ctx.fillStyle = INK; ctx.fillRect(0, hgt, W, 2);
+    const t0 = FALL, span = run.tLast - t0, x0 = 14, w = W - 28;
+    const range = Math.max(1, run.rollHi - run.rollLo);
+    for (const v of run.voices) for (const h of v.hits) {
+      if (h.felt) continue;
+      const x = x0 + ((h.t - t0) / span) * w, len = Math.max(3, (Math.min(h.dur, 1.2) / span) * w - 1.5);
+      const y = hgt - 9 - ((h.midi - run.rollLo) / range) * (hgt - 18);
+      const on = t >= h.t;
+      ctx.globalAlpha = on ? 1 : 0.38;
+      ctx.fillStyle = h.color;
+      rr(x, y - 2.5, len, 5, 2); ctx.fill();
+      if (on && t - h.t < 0.25) { ctx.strokeStyle = INK; ctx.lineWidth = 1.5; ctx.stroke(); }
+    }
+    ctx.globalAlpha = 1;
+    const px = x0 + clamp((t - t0) / span) * w;
+    ctx.fillStyle = INK; ctx.fillRect(px - 1, 4, 2, hgt - 8);
+  }
+
+  /** Where the camera wants its top edge at time t. */
+  const camTarget = (t) => Math.max(0, run.yAt(clamp(t, 0, run.cupT)) - (view.visH / view.z) * 0.6);
+  function camFx(r, t) {
+    let punch = 1;
+    for (const v of r.voices) {
+      const i = marbleAt(v, t)[4];
+      if (i >= 0 && i < v.hits.length) punch += 0.011 * v.hits[i].amp * Math.exp(-(t - v.hits[i].t) * 9);
+    }
+    return [0.013 * Math.sin(t * 0.5), punch];
+  }
+  function worldTransform(t) {
+    // A slow sway, and a small push toward the wall on every hit.
+    const [tilt, punch] = still() ? [0, 1] : camFx(run, t);
+    const px = view.ox + (view.FW * view.z) / 2, py = view.visH * 0.52;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.translate(px, py); ctx.rotate(tilt); ctx.scale(punch, punch); ctx.translate(-px, -py);
+    ctx.translate(view.ox, -view.z * camY); ctx.scale(view.z, view.z);
+  }
+
+  let vignette = null;
+  function drawWorld(t, nowS) {
+    const top = camY - 70, bot = camY + H / view.z + 70;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.fillStyle = WALL; ctx.fillRect(0, 0, W, H);
+    worldTransform(t);
+    drawBoard(top - 4, bot + 4, false);
+    const vis = (y) => y > top - 100 && y < bot + 100;
+    const calm = still();
+    const popOf = (h) => (calm ? 1 : backOut(clamp((nowS - run.born - h.rank * 0.028) / 0.3)));
+    for (const v of run.voices) {
+      for (const h of v.hits) if (vis(h.y)) { const pop = popOf(h); if (pop > 0.02) drawKeyBack(h, t, pop); }
+      if (vis(v.chute.y)) drawChute(v);
+      if (vis(v.cup.y)) drawCupBack(v);
+    }
+    if (showPath && !exporting) for (const v of run.voices) drawGuide(v, t);
+    for (const v of run.voices) for (const h of v.hits) if (vis(h.y)) { const pop = popOf(h); if (pop > 0.02) drawBar(h, t, pop); }
+    for (const v of run.voices) for (const h of v.hits) if (vis(h.y)) drawHit(h, v, t);
+    for (const v of run.voices) {
+      drawTrail(v, t);
+      drawMarble(v, marbleAt(v, t), t);
+      if (vis(v.chute.y)) drawGate(v, t);
+      if (vis(v.cup.y)) drawCupFront(v);
+    }
+    // Note names last, over everything.
+    for (const v of run.voices) for (const h of v.hits) {
+      const age = t - h.t;
+      if (!h.felt && age >= 0 && age < 1.05 && vis(h.y)) drawLabel(h, v, age);
+    }
+    ctx.globalAlpha = 1;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    // Light falls off toward the corners of the stairwell.
+    if (!vignette) {
+      vignette = ctx.createRadialGradient(W * 0.56, H * 0.42, Math.min(W, H) * 0.35, W * 0.5, H * 0.5, Math.hypot(W, H) * 0.62);
+      vignette.addColorStop(0, "rgba(120,62,20,0)"); vignette.addColorStop(1, "rgba(120,62,20,0.17)");
+    }
+    ctx.fillStyle = vignette; ctx.fillRect(0, 0, W, H);
+    if (!exporting && (!pianoOn || W > 640)) drawRoll(t);
+  }
+  function drawLabel(h, v, age) {
+    const b = h.bar, lift = still() ? 0 : age * 8;
+    ctx.globalAlpha = clamp((1.05 - age) / 0.45);
+    ctx.font = `800 ${Math.round((v.low ? 16 : 15) / Math.min(1, Math.pow(view.z, 0.8)))}px "Anybody", system-ui`;
+    ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.lineJoin = "round";
+    const d = v.R + b.ht * 2 + 18;
+    const lx = clamp(h.x - b.nx * d, 16, view.FW - 16), ly = h.y - b.ny * d + 3 + lift;
+    ctx.lineWidth = 4; ctx.strokeStyle = WALL; ctx.strokeText(h.name, lx, ly);
+    ctx.fillStyle = INK; ctx.fillText(h.name, lx, ly);
+  }
+
+  // ── The same run, built as a real object ───────────────────────────────────
+  // three.js draws what the solver laid out: the run stays in one plane, a little
+  // way off a tiled wall, with every key held out on a steel rod. World x maps to
+  // x, world y to −y, and z is the distance out from the wall.
+  const ZP = 74;                        // how far off the wall the marbles travel
+  const LAMP_Z = 360;                   // the lamp sits low: about 20° off the wall, so shadows run long
+  let T3 = null, g3 = null;
+  const paintTexture = (size, draw) => {
+    const c = document.createElement("canvas"); c.width = c.height = size;
+    draw(c.getContext("2d"), size);
+    const t = new T3.CanvasTexture(c);
+    t.wrapS = t.wrapT = T3.RepeatWrapping; t.anisotropy = 8;
+    return t;
+  };
+  async function initGL() {
+    try {
+      const probe = document.createElement("canvas").getContext("webgl2");
+      if (!probe) return;
+      const [THREE, envMod, boxMod] = await Promise.all([
+        import("three"), import("three/addons/environments/RoomEnvironment.js"), import("three/addons/geometries/RoundedBoxGeometry.js"),
+      ]);
+      T3 = THREE;
+      const small = Math.min(innerWidth, innerHeight) < 700 || (navigator.hardwareConcurrency || 8) <= 4;
+      const want = new URLSearchParams(location.search).get("tier");
+      const renderer = new THREE.WebGLRenderer({ canvas: $("gl"), antialias: true, powerPreference: "high-performance" });
+      renderer.shadowMap.enabled = true;
+      renderer.shadowMap.type = THREE.VSMShadowMap;
+      renderer.shadowMap.autoUpdate = false;                       // redrawn only when the lamp moves or the run changes
+      renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 0.8;
+      renderer.outputColorSpace = THREE.SRGBColorSpace;
+      renderer.transmissionResolutionScale = 0.5;                 // what shows through the glass marbles can be coarse
+      const scene = new THREE.Scene();
+      scene.background = new THREE.Color("#e2d5bf");
+      const pm = new THREE.PMREMGenerator(renderer);
+      scene.environment = pm.fromScene(new envMod.RoomEnvironment(), 0.04).texture;
+      scene.environmentIntensity = 0.3;
+      const camera = new THREE.PerspectiveCamera(30, 1, 40, 9000);
+
+      // One warm lamp, low to the wall, so everything throws a long soft shadow.
+      const sun = new THREE.DirectionalLight("#ffe9c8", 3.4);
+      sun.castShadow = true;
+      sun.shadow.mapSize.set(1024, 1024);
+      sun.shadow.bias = -0.0002; sun.shadow.normalBias = 0.6; sun.shadow.radius = 2.2; sun.shadow.blurSamples = 8;
+      scene.add(sun, sun.target);
+      scene.add(new THREE.HemisphereLight("#fff6ea", "#a8957a", 0.34));
+
+      // The wall: big square tiles, thin grout, a little unevenness.
+      const TILE = 250, REP = 3;
+      const tone = paintTexture(1024, (c, n) => {
+        const u = n / REP;
+        c.fillStyle = "#e7dbc5"; c.fillRect(0, 0, n, n);
+        for (let i = 0; i < REP; i++) for (let j = 0; j < REP; j++) {
+          const k = rnd(i * 3.1 + j * 7.7, 2);
+          c.fillStyle = `rgba(${k > 0.5 ? "255,250,240" : "120,96,60"},${0.02 + 0.05 * Math.abs(k - 0.5)})`; c.fillRect(i * u, j * u, u, u);
+        }
+        for (let k = 0; k < 5000; k++) { c.fillStyle = `rgba(110,88,58,${0.012 + rnd(k, 5) * 0.03})`; c.fillRect(rnd(k, 1) * n, rnd(k, 2) * n, 1 + rnd(k, 3) * 2.4, 1 + rnd(k, 4) * 2.4); }
+        c.strokeStyle = "#d3c6ae"; c.lineWidth = 3;
+        for (let i = 0; i <= REP; i++) { c.beginPath(); c.moveTo(i * u, 0); c.lineTo(i * u, n); c.moveTo(0, i * u); c.lineTo(n, i * u); c.stroke(); }
+      });
+      tone.colorSpace = THREE.SRGBColorSpace;
+      const bump = paintTexture(512, (c, n) => {
+        const u = n / REP;
+        c.fillStyle = "#c8c8c8"; c.fillRect(0, 0, n, n);
+        c.strokeStyle = "#8a8a8a"; c.lineWidth = 2.5;
+        for (let i = 0; i <= REP; i++) { c.beginPath(); c.moveTo(i * u, 0); c.lineTo(i * u, n); c.moveTo(0, i * u); c.lineTo(n, i * u); c.stroke(); }
+      });
+      const SPAN = TILE * REP * 12;
+      tone.repeat.set(12, 12); bump.repeat.set(12, 12);
+      const wall = new THREE.Mesh(new THREE.PlaneGeometry(SPAN, SPAN), new THREE.MeshStandardMaterial({ map: tone, bumpMap: bump, bumpScale: 0.8, roughness: 0.78, metalness: 0 }));
+      wall.receiveShadow = true;
+      scene.add(wall);
+
+      const wood = paintTexture(256, (c, n) => {
+        c.fillStyle = "#b9763f"; c.fillRect(0, 0, n, n);
+        for (let k = 0; k < 46; k++) {
+          const y = rnd(k, 1) * n;
+          c.strokeStyle = `rgba(${rnd(k, 2) > 0.5 ? "70,36,14" : "232,176,118"},${0.1 + rnd(k, 3) * 0.2})`; c.lineWidth = 0.6 + rnd(k, 4) * 2.2;
+          c.beginPath(); c.moveTo(0, y); c.bezierCurveTo(n * 0.3, y + rnd(k, 5) * 10 - 5, n * 0.7, y + rnd(k, 6) * 10 - 5, n, y); c.stroke();
+        }
+      });
+      wood.colorSpace = THREE.SRGBColorSpace;
+      const brushed = paintTexture(256, (c, n) => {
+        c.fillStyle = "#808080"; c.fillRect(0, 0, n, n);
+        for (let k = 0; k < 900; k++) { c.fillStyle = `rgba(${rnd(k, 1) > 0.5 ? 255 : 0},${rnd(k, 1) > 0.5 ? 255 : 0},${rnd(k, 1) > 0.5 ? 255 : 0},${0.03 + rnd(k, 2) * 0.07})`; c.fillRect(0, rnd(k, 3) * n, n, 1); }
+      });
+
+      const steel = new THREE.MeshStandardMaterial({ color: "#c9c9c6", metalness: 1, roughness: 0.32 });
+      const dark = new THREE.MeshStandardMaterial({ color: "#2a2018", roughness: 0.8 });
+      const geo = {
+        box: (l, t, d) => new boxMod.RoundedBoxGeometry(l, t, d, 4, Math.min(3, t * 0.3)),
+        hole: new THREE.CylinderGeometry(2.6, 2.6, 0.5, 14),
+        tube: new THREE.CylinderGeometry(1, 1, 1, 30, 1, true).rotateX(Math.PI / 2),
+        bore: new THREE.CylinderGeometry(0.86, 0.86, 1, 30, 1, true).rotateX(Math.PI / 2),
+        lip: new THREE.RingGeometry(0.86, 1, 30),
+        rod: new THREE.CylinderGeometry(1, 1, 1, 10).rotateX(Math.PI / 2),
+        solid: new THREE.CylinderGeometry(1, 1, 1, 26).rotateX(Math.PI / 2),
+        ball: new THREE.SphereGeometry(1, 40, 28),
+        bead: new THREE.SphereGeometry(1, 10, 7),
+        knot: new THREE.TorusKnotGeometry(0.42, 0.15, 72, 10, 2, 3),
+      };
+      const stripes = [];
+
+      g3 = { THREE, renderer, scene, camera, sun, wall, stripes, steel, dark, geo, wood, brushed, TILE, small, group: null, trash: [], run: null,
+        lineY: 0, tx: 0, insL: 0, insB: 0, ratio: 1, bloom: null, dtAvg: 16, slow: 0, w: 0, h: 0, sx: 1e9, sy: 1e9 };
+      // A soft dark smudge stands in for each marble's shadow, so the real shadow map can rest between camera moves.
+      g3.blob = paintTexture(64, (c, n) => {
+        const g = c.createRadialGradient(n / 2, n / 2, 0, n / 2, n / 2, n / 2);
+        g.addColorStop(0, "rgba(60,40,20,0.75)"); g.addColorStop(0.55, "rgba(60,40,20,0.3)"); g.addColorStop(1, "rgba(60,40,20,0)");
+        c.fillStyle = g; c.fillRect(0, 0, n, n);
+      });
+      g3.blobGeo = new THREE.PlaneGeometry(1, 1);
+      // medium (the default): up to 1.5× pixels · low: 1×, small shadow map · high (?tier=high): adds bloom
+      g3.tier = want === "low" || want === "medium" || want === "high" ? want : "medium";
+      g3.ratio = Math.min(window.devicePixelRatio || 1, g3.tier === "low" ? 1 : small ? 1.25 : 1.5);
+      renderer.info.autoReset = false;
+      if (g3.tier === "high") try {
+        const [ec, rp, bp, op] = await Promise.all(["EffectComposer", "RenderPass", "UnrealBloomPass", "OutputPass"].map((n) => import(`three/addons/postprocessing/${n}.js`)));
+        const rt = new THREE.WebGLRenderTarget(4, 4, { type: THREE.HalfFloatType, samples: 4 });
+        const composer = new ec.EffectComposer(renderer, rt);
+        composer.addPass(new rp.RenderPass(scene, camera));
+        composer.addPass(new bp.UnrealBloomPass(new THREE.Vector2(4, 4), 0.16, 0.55, 0.92));
+        composer.addPass(new op.OutputPass());
+        g3.bloom = composer;
+      } catch (e) {}
+      const gx = renderer.getContext(), dbg = gx.getExtension("WEBGL_debug_renderer_info");
+      g3.gpu = dbg ? gx.getParameter(dbg.UNMASKED_RENDERER_WEBGL) : "unknown";
+      if (g3.tier === "high" && !g3.bloom) g3.tier = "medium";
+      sizeGL(W, H, g3.ratio);
+      setRunGL(run);
+      document.body.classList.add("three");
+    } catch (e) { g3 = null; }
+  }
+  function sizeGL(w, h, ratio) {
+    if (!g3) return;
+    g3.w = w; g3.h = h;
+    g3.renderer.setPixelRatio(ratio); g3.renderer.setSize(w, h, false);
+    if (g3.bloom) { g3.bloom.setPixelRatio(ratio); g3.bloom.setSize(w, h); }
+  }
+  /** Build every key, rod, rail, chute, cup and marble of a run. */
+  function setRunGL(r) {
+    if (!g3) return;
+    const { THREE, scene, geo, steel } = g3;
+    if (g3.group) { scene.remove(g3.group); for (const d of g3.trash) d.dispose(); }
+    const group = (g3.group = new THREE.Group()), trash = (g3.trash = []);
+    scene.add(group);
+    g3.run = r;
+    const keep = (x) => (trash.push(x), x), boxes = new Map();
+    const boxGeo = (l, t, d) => { const k = `${Math.round(l)}|${Math.round(t)}|${d}`; if (!boxes.has(k)) boxes.set(k, keep(geo.box(Math.round(l), Math.round(t), d))); return boxes.get(k); };
+    const shadowed = (m) => { m.castShadow = true; m.receiveShadow = true; return m; };
+    const rods = [], balls = [];                       // [x, y, z0, z1, radius] and [x, y, radius]
+    const pin = (x, y, z1, rad = 1.7) => { rods.push([x, y, 0, z1, rad]); rods.push([x, y, 0, 2.2, rad * 2.7]); };
+    for (const v of r.voices) {
+      for (const h of v.hits) {
+        const b = h.bar, obj = new THREE.Group(), K = h.kind;
+        let mat, back, twoPin = false;
+        if (K === "tube") {
+          const len = 172 - 70 * h.frac, rad = b.ht;
+          mat = keep(new THREE.MeshPhysicalMaterial({ color: h.hue, roughness: 0.3, clearcoat: 1, clearcoatRoughness: 0.12, side: THREE.DoubleSide, emissive: h.hue, emissiveIntensity: 0 }));
+          const shell = shadowed(new THREE.Mesh(geo.tube, mat)); shell.scale.set(rad, rad, len); shell.position.z = 14 + len / 2 - ZP;
+          const lip = new THREE.Mesh(geo.lip, mat); lip.scale.set(rad, rad, 1); lip.position.z = 14 + len - ZP;
+          obj.add(shell, lip); back = 14;
+          obj.position.set(b.cx, -b.cy, ZP);
+          // Each tube leans its own way, turning about the line through the point the marble strikes.
+          obj.quaternion.setFromAxisAngle(new THREE.Vector3(b.nx, -b.ny, 0), (rnd(h.seed, 9) - 0.5) * 0.7);
+          obj.rotateOnAxis(new THREE.Vector3(-b.ny, -b.nx, 0).normalize(), (rnd(h.seed, 12) - 0.5) * 0.3);
+        } else if (K === "bell") {
+          mat = keep(new THREE.MeshStandardMaterial({ color: "#d9a53c", metalness: 1, roughness: 0.24, emissive: h.color, emissiveIntensity: 0 }));
+          const m = shadowed(new THREE.Mesh(geo.solid, mat)); m.scale.set(b.ht, b.ht, 50);
+          obj.add(m); back = ZP - 25;
+          obj.position.set(b.cx, -b.cy, ZP);
+        } else {
+          const depth = K === "felt" ? 24 : K === "white" ? 21 : K === "vibe" ? 23 : 25;
+          if (K === "wood") mat = new THREE.MeshStandardMaterial({ map: g3.wood, color: "#ffffff", roughness: 0.55 });
+          else if (K === "white") mat = new THREE.MeshPhysicalMaterial({ color: "#e6e0d4", roughness: 0.42, clearcoat: 0.5, clearcoatRoughness: 0.25 });
+          else if (K === "vibe") mat = new THREE.MeshStandardMaterial({ color: "#dadde0", metalness: 0.72, roughness: 0.4, roughnessMap: g3.brushed, envMapIntensity: 1.6 });
+          else mat = new THREE.MeshStandardMaterial({ color: "#ece5d8", roughness: 0.95 });
+          keep(mat); mat.emissive = new THREE.Color(K === "felt" ? "#000000" : h.color); mat.emissiveIntensity = 0;
+          const m = shadowed(new THREE.Mesh(boxGeo(b.hl * 2, b.ht * 2, depth), mat));
+          obj.add(m); back = ZP - depth / 2;
+          if (K !== "felt") {                                    // a bracket of two thin pins, each ending in a ball
+            for (const sx of [-0.27, 0.27]) {
+              const px = b.cx + b.tx * sx * b.hl * 2, py = b.cy + b.ty * sx * b.hl * 2;
+              rods.push([px, py, 0, back, 1.25]); balls.push([px, py, 3.2]);
+            }
+            twoPin = true;
+          }
+          obj.position.set(b.cx, -b.cy, ZP); obj.rotation.z = -b.ang;
+        }
+        if (!twoPin) pin(b.cx, b.cy, back);
+        group.add(obj);
+        h.g = { obj, mat, x: b.cx, y: -b.cy, lit: false };
+      }
+      // Rails: two wires under the marble, ties between them, a post to the wall every so often.
+      for (const h of v.hits) if (h.rail) {
+        const rl = h.rail, n = rl.ts.length, wires = [[], []], R = v.R;
+        for (let k = 0; k < n; k++) {
+          const a = Math.max(0, k - 1), c = Math.min(n - 1, k + 1);
+          let tx = rl.pts[c * 2] - rl.pts[a * 2], ty = rl.pts[c * 2 + 1] - rl.pts[a * 2 + 1];
+          const tl = Math.hypot(tx, ty) || 1; tx /= tl; ty /= tl;
+          let nx = -ty, ny = tx; if (ny < 0) { nx = -nx; ny = -ny; }             // the side gravity presses on
+          const x = rl.pts[k * 2], y = rl.pts[k * 2 + 1];
+          if (Math.hypot(x - h.x, y - h.y) < R * 1.5) continue;
+          const wx = x + nx * (R * 0.8 + 1.4), wy = y + ny * (R * 0.8 + 1.4);
+          wires[0].push(new THREE.Vector3(wx, -wy, ZP - R * 0.6)); wires[1].push(new THREE.Vector3(wx, -wy, ZP + R * 0.6));
+          if (k % 2 === 0) rods.push([wx + nx * 2, wy + ny * 2, ZP - R * 0.6, ZP + R * 0.6, 1.1]);
+          if (k % 5 === 2) pin(wx + nx * 2, wy + ny * 2, ZP - R * 0.6, 1.5);
+        }
+        if (wires[0].length > 2) for (const w of wires) {
+          const m = shadowed(new THREE.Mesh(keep(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(w), w.length * 3, 1.5, 6)), steel));
+          group.add(m);
+        }
+      }
+      // Chute: a glass tube under a steel funnel, with a gate that slides away.
+      const R = v.R, w = R + 5, glassMat = keep(new THREE.MeshPhysicalMaterial({ color: "#ffffff", roughness: 0.05, transparent: true, opacity: 0.24, side: THREE.DoubleSide, depthWrite: false, envMapIntensity: 2 }));
+      const tubeH = 2 * R + 48, tube = new THREE.Mesh(keep(new THREE.CylinderGeometry(w, w, tubeH, 28, 1, true)), glassMat);
+      tube.position.set(v.chute.x, -(v.chute.y - 20), ZP); tube.castShadow = true;
+      const fun = shadowed(new THREE.Mesh(keep(new THREE.CylinderGeometry(w + 9, w + 1, 14, 28, 1, true)), keep(steel.clone())));
+      fun.material.side = THREE.DoubleSide; fun.position.set(v.chute.x, -(v.chute.y - R - 51), ZP);
+      const gate = shadowed(new THREE.Mesh(keep(new THREE.BoxGeometry(2 * w + 12, 3.5, 2 * w + 4)), steel));
+      gate.position.set(v.chute.x, -(v.chute.y + R + 3.5), ZP);
+      pin(v.chute.x, v.chute.y - R - 50, ZP - w - 8, 2.6);
+      const cupProfile = [new THREE.Vector2(0.01, -(R + 4)), new THREE.Vector2(v.cup.w - 4, -(R + 4)), new THREE.Vector2(v.cup.w, -R), new THREE.Vector2(v.cup.w, R + 13)];
+      const cup = shadowed(new THREE.Mesh(keep(new THREE.LatheGeometry(cupProfile, 28)), fun.material));
+      cup.position.set(v.cup.x, -v.cup.y, ZP);
+      pin(v.cup.x, v.cup.y + R + 2, ZP - v.cup.w, 2.6);
+      // The marble: clear glass round a twist of colour.
+      const ball = new THREE.Group();
+      const glass = new THREE.Mesh(geo.ball, keep(g3.tier === "low"
+        ? new THREE.MeshPhysicalMaterial({ color: `rgb(${v.glass})`, roughness: 0.02, metalness: 0, transparent: true, opacity: 0.5, clearcoat: 1, envMapIntensity: 2.4, depthWrite: false })
+        : new THREE.MeshPhysicalMaterial({ color: "#ffffff", roughness: 0.04, metalness: 0, transmission: 1, ior: 1.5, thickness: R * 1.4, attenuationColor: `rgb(${v.glass})`, attenuationDistance: R * 5, clearcoat: 1, clearcoatRoughness: 0.02, envMapIntensity: 1.8, specularIntensity: 1 })));
+      glass.scale.setScalar(R); glass.castShadow = true; glass.renderOrder = 2;
+      const twist = new THREE.Group();
+      [v.body, v.swirl].forEach((col, i) => {
+        const k = new THREE.Mesh(geo.knot, keep(new THREE.MeshStandardMaterial({ color: col, roughness: 0.25, emissive: col, emissiveIntensity: 0.55 })));
+        k.scale.setScalar(R * (i ? 1.05 : 1.42)); if (i) k.rotation.set(1.2, 0.6, 0); k.castShadow = true; twist.add(k);
+      });
+      ball.add(twist, glass);
+      glass.castShadow = false;                                  // the twist inside casts the marble's shadow
+      const shade3 = new THREE.Mesh(geo.ball, keep(new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: false })));
+      shade3.scale.setScalar(R * 0.96); shade3.castShadow = true; ball.add(shade3);
+      const blob = new THREE.Mesh(g3.blobGeo, keep(new THREE.MeshBasicMaterial({ map: g3.blob, transparent: true, depthWrite: false, opacity: 0.5 })));
+      blob.scale.set(R * 7, R * 3, 1); blob.rotation.z = Math.atan2(-640, 760); blob.renderOrder = 1;
+      group.add(tube, fun, gate, cup, ball, blob);
+      v.g = { ball, twist, gate, blob, gx: v.chute.x };
+    }
+    const inst = shadowed(new THREE.InstancedMesh(geo.rod, steel, rods.length)), M = new THREE.Matrix4();
+    rods.forEach(([x, y, z0, z1, rad], i) => { M.makeScale(rad, rad, z1 - z0); M.setPosition(x, -y, (z0 + z1) / 2); inst.setMatrixAt(i, M); });
+    inst.instanceMatrix.needsUpdate = true; inst.frustumCulled = false;
+    group.add(inst);
+    if (balls.length) {
+      const bi = shadowed(new THREE.InstancedMesh(geo.bead, steel, balls.length));
+      balls.forEach(([x, y, rad], i) => { M.makeScale(rad, rad, rad); M.setPosition(x, -y, rad * 0.8); bi.setMatrixAt(i, M); });
+      bi.instanceMatrix.needsUpdate = true; bi.frustumCulled = false;
+      group.add(bi);
+    }
+    g3.stripes.forEach((m, i) => { const k = i >> 1; m.position.x = i & 1 ? view.FW + 52 + k * 30 + 11 : -52 - k * 30 - 11; });
+    g3.lineY = r.yAt(0); g3.tx = view.FW / 2; g3.sx = 1e9;
+  }
+  /** Move everything to time t and draw. `dt` 0 snaps the camera instead of easing it. */
+  function renderGL(t, nowS, dt) {
+    const { THREE, camera, sun, renderer } = g3, r = g3.run, calm = still();
+    const k = dt ? 1 - Math.exp(-dt * 5) : 1, k2 = dt ? 1 - Math.exp(-dt * 9) : 1;
+    let punch = 0, mx = 0;
+    for (const v of r.voices) {
+      for (const h of v.hits) {
+        const age = t - h.t, g = h.g;
+        const pop = calm ? 1 : backOut(clamp((nowS - r.born - h.rank * 0.028) / 0.3));
+        if (age >= 0 && age < 1.3) {
+          const e = Math.exp(-age * 6), dip = calm ? 0 : e * Math.sin(age * 30) * 6 * h.amp;
+          g.obj.position.x = g.x - h.bar.nx * dip; g.obj.position.y = g.y + h.bar.ny * dip;
+          g.mat.emissiveIntensity = Math.exp(-age * 7) * (h.kind === "tube" ? 0.55 : 0.8);
+          g.lit = true;
+        } else if (g.lit) { g.obj.position.x = g.x; g.obj.position.y = g.y; g.mat.emissiveIntensity = 0; g.lit = false; }
+        if (g.pop !== pop) { g.obj.scale.setScalar(Math.max(0.001, pop)); g.pop = pop; }
+      }
+      const m = marbleAt(v, t);
+      v.g.ball.position.set(m[0], -m[1], ZP);
+      v.g.blob.position.set(m[0] + (ZP * 760) / LAMP_Z, -m[1] - (ZP * 640) / LAMP_Z, 0.8);
+      v.g.twist.rotation.z = -m[0] / (v.R * 1.2); v.g.twist.rotation.x = t * 2.1;
+      v.g.gate.position.x = v.g.gx - clamp((t - v.tRel + 0.04) / 0.09) * (2 * v.R + 16);
+      mx += m[0] / r.voices.length;
+      if (!calm && m[4] >= 0 && m[4] < v.hits.length) punch += 0.012 * v.hits[m[4]].amp * Math.exp(-(t - v.hits[m[4]].t) * 9);
+    }
+    // The camera: off to one side and above, gliding, a little ahead of the marbles.
+    const aspect = g3.w / g3.h, fov = aspect < 0.8 ? 48 : 40, th = Math.tan((fov * Math.PI) / 360);
+    const dist = Math.max((view.FW * (aspect < 0.8 ? 0.66 : 0.7)) / (th * aspect), 430 / th) * (1 - punch);
+    const span = 2 * dist * th;
+    g3.lineY += (r.yAt(clamp(t, 0, r.cupT)) - g3.lineY) * k;
+    g3.tx += (view.FW / 2 + (mx - view.FW / 2) * 0.22 - g3.tx) * k;
+    g3.insL += (inset.l - g3.insL) * k2; g3.insB += (inset.b - g3.insB) * k2;
+    const yaw = calm ? 0.3 : 0.34 * Math.sin(0.19 * t + 0.9) + 0.08, pitch = calm ? 0.62 : 0.64 + 0.07 * Math.sin(0.13 * t + 2);
+    const ty = -(g3.lineY + span * 0.12), cp = Math.cos(pitch);
+    camera.fov = fov; camera.aspect = aspect;
+    camera.position.set(g3.tx + dist * Math.sin(yaw) * cp, ty + dist * Math.sin(pitch), ZP * 0.5 + dist * Math.cos(yaw) * cp);
+    camera.lookAt(g3.tx, ty, ZP * 0.5);
+    if (!calm) camera.rotateZ(0.018 * Math.sin(0.31 * t));
+    if (exporting || (!g3.insL && !g3.insB)) camera.clearViewOffset();
+    else camera.setViewOffset(g3.w, g3.h, -g3.insL / 2, g3.insB / 2, g3.w, g3.h);
+    camera.updateProjectionMatrix();
+    // The lamp and the wall travel with the view, the wall in whole tiles so its pattern never slides.
+    // The shadow map covers just what the camera can see (plus the reach of a shadow), so its texels stay dense.
+    const reach = Math.ceil((Math.max(span * aspect, span * 1.5) * 0.62 + 260) / 100) * 100, snap = 64, lx = Math.round(g3.tx / snap) * snap, ly = Math.round((ty - span * 0.22) / snap) * snap;
+    const sc = sun.shadow.camera, popping = !calm && nowS - r.born < 2, live = g3.tier !== "low" && (mode === "play" || exporting || frozen !== null);
+    for (const v of r.voices) v.g.blob.visible = !live;
+    if (lx !== g3.sx || ly !== g3.sy || sc.right !== reach || popping || live) {
+      g3.sx = lx; g3.sy = ly;
+      sun.target.position.set(lx, ly, 0);
+      sun.position.set(lx - 760, ly + 640, LAMP_Z);
+      if (sc.right !== reach) { sc.left = -reach; sc.right = reach; sc.top = reach; sc.bottom = -reach; sc.near = 50; sc.far = 2600; sc.updateProjectionMatrix(); }
+      renderer.shadowMap.needsUpdate = true;
+    }
+    const tile = g3.TILE * 3;
+    g3.wall.position.set(Math.round(g3.tx / tile) * tile, Math.round(ty / tile) * tile, 0);
+    for (const m of g3.stripes) m.position.y = ty;
+    renderer.info.reset();
+    if (g3.bloom) g3.bloom.render(); else renderer.render(g3.scene, camera);
+  }
+  const v3 = () => (g3.v || (g3.v = new T3.Vector3()));
+  /** What sits on top of the 3D picture: note names, the section's title, the piano roll. */
+  function drawOverlay(t, clear) {
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    if (clear) ctx.clearRect(0, 0, W, H);
+    const u = exporting ? Math.min(W, H) / 560 : 1;
+    ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.lineJoin = "round";
+    // Which instruments are playing, as a small title.
+    const secs = g3.run.sections;
+    let cur = -1;
+    for (let i = 0; i < secs.length; i++) if (t >= secs[i].t - 0.5) cur = i;
+    if (cur >= 0 && t < g3.run.cupT) {
+      const a = clamp((t - secs[cur].t + 0.5) / 0.35), x = exporting ? W / 2 : g3.insL + (W - g3.insL) / 2, y = (exporting ? 96 : 66) * u;
+      ctx.globalAlpha = a;
+      try { ctx.letterSpacing = "0.04em"; } catch (e) {}
+      ctx.font = `800 ${Math.round(15 * u)}px "Anybody", system-ui`;
+      ctx.lineWidth = 5 * u; ctx.strokeStyle = "rgba(253,246,234,0.9)"; ctx.strokeText(secs[cur].title, x, y);
+      ctx.fillStyle = INK; ctx.fillText(secs[cur].title, x, y);
+      try { ctx.letterSpacing = "0px"; } catch (e) {}
+    }
+    ctx.globalAlpha = 1;
+    // Light falls off toward the edges of the frame.
+    if (!g3.vig || g3.vigW !== W || g3.vigH !== H) {
+      g3.vig = ctx.createRadialGradient(W * 0.5, H * 0.46, Math.min(W, H) * 0.34, W * 0.5, H * 0.5, Math.hypot(W, H) * 0.6);
+      g3.vig.addColorStop(0, "rgba(58,36,14,0)"); g3.vig.addColorStop(1, "rgba(58,36,14,0.36)");
+      g3.vigW = W; g3.vigH = H;
+    }
+    ctx.fillStyle = g3.vig; ctx.fillRect(0, 0, W, H);
+    if (!exporting && (!pianoOn || W > 640)) drawRoll(t);
+  }
+
+  // ── The finished run, folded into columns like a page of music ───────────
+  let poster = null;
+  function posterBox() {
+    if (exporting) { const m = Math.round(Math.min(W, H) * 0.06); return { x0: m, x1: W - m, y0: m * 1.3, y1: H - m * 0.4, big: Math.min(W, H) / 520 }; }
+    const wide = W >= 900 && sheetOpen;
+    return { x0: wide ? inset.l + 8 : 16, x1: W - 16, y0: 20, y1: H - (!wide && sheetOpen ? inset.b + 4 : W < 900 ? 70 : 16), big: 1 };
+  }
+  function placeAgain() {
+    const p = posterBox();
+    $("play").style.setProperty("--ax", `${(p.x0 + p.x1) / 2}px`);
+    $("play").style.setProperty("--ay", `${p.y1 - 34}px`);
+    poster = null;
+  }
+  function layoutPoster() {
+    const p = posterBox(), FW = view.FW;
+    const fs = clamp((p.x1 - p.x0) / 11, 26, 58 * p.big);
+    const top = p.y0 + fs * 1.05 + 34 * p.big, bot = p.y1 - 76 * p.big;
+    const pw = p.x1 - p.x0, ph = Math.max(80, bot - top), T = run.y1 - run.y0, gut = 26;
+    let best = { s: 0, n: 1 };
+    for (let n = 1; n <= 12; n++) {
+      const s = Math.min(pw / (n * FW + (n - 1) * gut), ph / (T / n));
+      if (s > best.s) best = { s, n };
+    }
+    const { s, n } = best, colW = FW * s, total = n * colW + (n - 1) * gut * s;
+    poster = { ...p, fs, top, s, n, colW, gap: gut * s, left: p.x0 + (pw - total) / 2, slice: T / n, hgt: (T / n) * s };
+  }
+  function drawPoster(age) {
+    if (!poster) layoutPoster();
+    const P = poster, calm = still();
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.fillStyle = WALL; ctx.fillRect(0, 0, W, H);
+    ctx.globalAlpha = calm ? 1 : clamp(age / 0.3);
+    ctx.fillStyle = INK; ctx.textAlign = "left"; ctx.textBaseline = "alphabetic";
+    ctx.font = `900 ${P.fs}px "Anybody", system-ui`;
+    try { ctx.fontStretch = "expanded"; ctx.letterSpacing = "-0.02em"; } catch (e) {}
+    ctx.fillText(run.song.name.toUpperCase(), P.x0, P.y0 + P.fs * 0.86, P.x1 - P.x0);
+    try { ctx.fontStretch = "normal"; ctx.letterSpacing = "0.07em"; } catch (e) {}
+    ctx.font = `700 ${Math.round(12 * P.big)}px "Anybody", system-ui`; ctx.fillStyle = "#5a3a26";
+    const secs = Math.round(run.tLast - FALL);
+    ctx.fillText(`${run.count} NOTES · ${secs} SECONDS · ${run.voices.length > 1 ? "TWO MARBLES" : "ONE MARBLE"}`, P.x0 + 2, P.y0 + P.fs * 0.86 + 22 * P.big);
+    try { ctx.letterSpacing = "0px"; } catch (e) {}
+
+    // Replay the run quickly: bars land on the page in the order they were played.
+    const head = calm ? 1e9 : ((age - 0.25) / Math.min(2.4, 0.6 + run.count * 0.03)) * run.cupT;
+    const lw = Math.max(2, 1.25 / P.s);
+    for (let c = 0; c < P.n; c++) {
+      const sx = P.left + c * (P.colW + P.gap), wy = run.y0 + c * P.slice;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.fillStyle = INK; ctx.fillRect(sx + 4, P.top + 4, P.colW, P.hgt);
+      ctx.save();
+      ctx.beginPath(); ctx.rect(sx, P.top, P.colW, P.hgt); ctx.clip();
+      const k = dpr * P.s;
+      ctx.setTransform(k, 0, 0, k, dpr * sx, dpr * P.top - k * wy);
+      drawBoard(wy, wy + P.slice, true);
+      const vis = (y) => y > wy - 80 && y < wy + P.slice + 80;
+      const popOf = (h) => backOut(clamp((head - h.t) / (run.cupT * 0.04) + 0.3));
+      for (const v of run.voices) {
+        for (const h of v.hits) if (vis(h.y) && head >= h.t) drawKeyBack(h, 1e9, popOf(h));
+        if (vis(v.chute.y)) drawChute(v);
+        if (vis(v.cup.y)) drawCupBack(v);
+      }
+      for (const v of run.voices) {
+        ctx.strokeStyle = "rgba(90,58,38,0.4)"; ctx.lineWidth = lw * 0.8; ctx.lineJoin = "round"; ctx.stroke(v.path);
+      }
+      for (const v of run.voices) {
+        for (const h of v.hits) if (vis(h.y) && head >= h.t) drawBar(h, 1e9, popOf(h));
+        if (vis(v.cup.y)) { if (head > v.cup.t) drawMarble(v, [v.cup.x, v.cup.y, 0, 0, -1], 0); drawCupFront(v); }
+      }
+      ctx.restore();
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.strokeStyle = INK; ctx.lineWidth = 2; ctx.strokeRect(sx, P.top, P.colW, P.hgt);
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  // The view makes room for whatever controls are open: `inset` is the part of the
+  // screen they cover, and the run is framed in what's left.
+  let inset = { l: 0, b: 0 }, sheetOpen = false, base = { z: 1, FW: 390 };
+  function viewGoal() {
+    const availW = W - inset.l, z = Math.min(base.z, availW / base.FW);
+    return { z, ox: inset.l + (availW - base.FW * z) / 2, visH: H - inset.b };
+  }
+  function easeView(k) {
+    const g = viewGoal();
+    view.z += (g.z - view.z) * k; view.ox += (g.ox - view.ox) * k; view.visH += (g.visH - view.visH) * k;
+    view.Hw = H / view.z;
+    const cx = Math.round(g.ox + (base.FW * g.z) / 2), cy = Math.round(g.visH / 2);
+    if (cx !== easeView.cx || cy !== easeView.cy) {
+      easeView.cx = cx; easeView.cy = cy;
+      document.body.style.setProperty("--cx", cx + "px"); document.body.style.setProperty("--cy", cy + "px");
+    }
+  }
+
+  // The last four seconds of frames: the time between them, and the time spent drawing each.
+  const stats = { gap: new Float32Array(240), job: new Float32Array(240), i: 0, n: 0 };
+  function perfNow() {
+    const n = Math.min(stats.n, 240), pick = (a, q) => { const x = Array.from(a.subarray(0, n)).sort((p, r) => p - r); return n ? +x[Math.min(n - 1, Math.floor(q * n))].toFixed(2) : 0; };
+    const info = g3 ? g3.renderer.info.render : { calls: 0, triangles: 0 };
+    return { frames: n, fps: n ? +(1000 / (Array.from(stats.gap.subarray(0, n)).reduce((a, b) => a + b, 0) / n)).toFixed(1) : 0,
+      gap50: pick(stats.gap, 0.5), gap95: pick(stats.gap, 0.95), job50: pick(stats.job, 0.5), job95: pick(stats.job, 0.95),
+      calls: info.calls, tris: info.triangles, tier: g3 ? g3.tier : "2d", ratio: g3 ? g3.ratio : dpr, gpu: g3 ? g3.gpu : "none" };
+  }
+
+  if (new URLSearchParams(location.search).has("perf")) {
+    const box = document.createElement("div");
+    box.style.cssText = "position:fixed;right:8px;top:50px;z-index:9;font:700 11px/1.5 ui-monospace,monospace;background:#241006;color:#fbe6cc;padding:6px 9px;border-radius:6px;white-space:pre;pointer-events:none";
+    document.body.appendChild(box);
+    setInterval(() => { const p = perfNow(); box.textContent = `${p.fps} fps · tier ${p.tier} · ${p.ratio}×\nframe gap p50 ${p.gap50} p95 ${p.gap95} ms\ndraw work p50 ${p.job50} p95 ${p.job95} ms\n${p.calls} calls · ${p.tris} tris`; }, 500);
+  }
+
+  let lastFrame = performance.now();
+  function frame(now) {
+    requestAnimationFrame(frame);
+    const dt = Math.min(0.05, (now - lastFrame) / 1000), nowS = now / 1000;
+    lastFrame = now;
+    if (exporting) return;
+    easeView(still() ? 1 : 1 - Math.exp(-dt * 9));
+    if (mode === "done" && frozen === null) { drawPoster(nowS - doneAt); return; }
+    const t = clock();
+    // The camera rides the run's steady descent rather than chasing the marble.
+    if (g3) {
+      // Keep an eye on the frame time, and trade resolution for smoothness if it slips.
+      g3.dtAvg += (dt * 1000 - g3.dtAvg) * 0.05;
+      g3.slow = g3.dtAvg > 21 ? g3.slow + dt : 0;
+      if (g3.slow > 2 && g3.tier !== "low" && mode === "play") {
+        g3.tier = g3.tier === "high" ? "medium" : "low"; g3.bloom = null;
+        g3.ratio = Math.min(window.devicePixelRatio || 1, g3.tier === "medium" ? 1.5 : 1);
+        sizeGL(W, H, g3.ratio); g3.slow = 0; g3.dtAvg = 16;
+      }
+      if (g3.run !== run) setRunGL(run);
+      const j0 = performance.now();
+      renderGL(t, nowS, frozen !== null ? 0 : dt);
+      drawOverlay(t, true);
+      stats.gap[stats.i] = dt * 1000; stats.job[stats.i] = performance.now() - j0; stats.i = (stats.i + 1) % 240; stats.n++;
+      return;
+    }
+    const target = camTarget(t);
+    if (frozen !== null) camY = target;
+    else camY += (target - camY) * (1 - Math.exp(-dt * (mode === "play" ? 5 : 9)));
+    drawWorld(t, nowS);
+  }
+
+  // ── Write your own ─────────────────────────────────────────────────────────
+  const KEYMAP = "awsedftgyhujk"; // C4 … C5, chromatic
+  const BLACK = new Set([1, 3, 6, 8, 10]);
+  let recording = [], pianoOn = false;
+  function setupPiano() {
+    const keys = $("keys");
+    let whiteIndex = 0;
+    for (let i = 0; i <= 12; i++) {
+      const b = document.createElement("button");
+      const black = BLACK.has(i % 12);
+      b.className = "key" + (black ? " black" : "");
+      b.dataset.i = i;
+      b.textContent = KEYMAP[i].toUpperCase();
+      b.setAttribute("aria-label", FLATS[i % 12]);
+      if (black) b.style.left = `calc(${whiteIndex} * (var(--kw) - 2px) - var(--bw) / 2)`;
+      else whiteIndex++;
+      b.addEventListener("pointerdown", (e) => { e.preventDefault(); press(i); b.classList.add("down"); });
+      const up = () => b.classList.remove("down");
+      b.addEventListener("pointerup", up); b.addEventListener("pointerleave", up); b.addEventListener("pointercancel", up);
+      keys.appendChild(b);
+    }
+    const apply = () => {
+      const [w, bw] = matchMedia("(max-width: 640px)").matches ? [30, 22] : [46, 32];
+      keys.style.setProperty("--kw", w + "px"); keys.style.setProperty("--bw", bw + "px");
+    };
+    apply(); addEventListener("resize", apply);
+  }
+  function press(i) {
+    audio();
+    const midi = C4 + i;
+    loadSample("marimba");
+    strike({ midi, vel: 0.8, pan: 0, kind: "wood" }, ac.currentTime, liveBus);
+    recording.push([midi, ac.currentTime]);
+    $("build").disabled = recording.length < 3;
+    $("pianoHint").textContent = recording.length < 3 ? `${recording.length} of at least 3 notes…` : `${recording.length} notes. Keep going, or build your run.`;
+  }
+  function openPiano() {
+    stop();
+    pianoOn = true; recording = [];
+    $("piano").classList.add("on");
+    $("build").disabled = true;
+    $("pianoHint").textContent = "Play a tune. Keys A–K work too.";
+    setSheet(false);
+    setUI();
+  }
+  function closePiano() { pianoOn = false; $("piano").classList.remove("on"); setUI(); }
+  function buildFromRecording() {
+    // The gaps between key presses become the rhythm, as played.
+    const notes = recording.map(([m, t], i) => {
+      const next = recording[i + 1];
+      const gap = next ? clamp(next[1] - t, 0.12, 2.2) : 1;
+      return [m, gap * 2];
+    });
+    closePiano();
+    useSong({ name: "Your tune", bpm: 120, notes }, -1);
+    play();
+  }
+  addEventListener("keydown", (e) => {
+    if (e.repeat || e.metaKey || e.ctrlKey || e.altKey) return;
+    const i = KEYMAP.indexOf(e.key.toLowerCase());
+    if (pianoOn && i >= 0) {
+      press(i);
+      const k = $("keys").querySelector(`[data-i="${i}"]`);
+      k.classList.add("down"); setTimeout(() => k.classList.remove("down"), 140);
+    } else if (!pianoOn && !exporting && $("export").hidden && e.key === " " && !(e.target instanceof HTMLButtonElement)) { e.preventDefault(); $("toggle").click(); }
+  });
+
+  // ── Controls ───────────────────────────────────────────────────────────────
+  let current = SONGS[0], speed = 1, bassOn = true;
+  function rebuild() { run = build(current, speed); poster = null; loadFor(run); }
+  function useSong(song, index) {
+    current = song;
+    rebuild();
+    camY = 0;
+    $("now").textContent = song.name;
+    setUI();
+    document.querySelectorAll("#songs button").forEach((b) => b.setAttribute("aria-pressed", String(Number(b.dataset.i) === index)));
+  }
+  function setSheet(open) {
+    sheetOpen = open;
+    $("sheet").hidden = !open;
+    $("open").setAttribute("aria-expanded", String(open));
+    $("open").textContent = open ? "Close" : "Tunes";
+    if (open) {
+      const r = $("sheet").getBoundingClientRect();
+      inset = W >= 900 ? { l: r.right + 8, b: 0 } : { l: 0, b: H - r.top + 6 };
+    } else inset = { l: 0, b: 0 };
+    poster = null;
+    if (mode === "done") placeAgain();
+    wake();
+  }
+  // While a tune plays and nobody is touching anything, the controls step back.
+  let quietTimer = 0;
+  function wake() {
+    document.body.classList.remove("quiet");
+    clearTimeout(quietTimer);
+    if (mode === "play" && !sheetOpen && !exporting) quietTimer = setTimeout(() => {
+      if (mode === "play" && !sheetOpen && !$("pill").matches(":hover, :focus-within")) document.body.classList.add("quiet");
+      else wake();
+    }, 2600);
+  }
+  for (const ev of ["pointermove", "pointerdown", "keydown", "focusin"]) addEventListener(ev, wake, { passive: true });
+  function pick(i) {
+    const go = mode !== "idle" || i === SONGS.length;
+    if (pianoOn) closePiano();
+    stop();
+    useSong(i < SONGS.length ? SONGS[i] : surprise(), i);
+    if (go) play();
+  }
+  for (const group of ["Classical", "Songs", "Yours"]) {
+    const h = document.createElement("span"); h.className = "label"; h.textContent = group; h.dataset.g = group;
+    $("songs").appendChild(h);
+    [...SONGS, { name: "Surprise me", group: "Yours" }].forEach((s, i) => {
+      if (s.group !== group) return;
+      const b = document.createElement("button");
+      b.className = "btn"; b.textContent = s.name; b.dataset.i = i; b.dataset.g = group;
+      b.addEventListener("click", () => pick(i));
+      $("songs").appendChild(b);
+    });
+  }
+  $("find").addEventListener("input", () => {
+    const q = $("find").value.trim().toLowerCase(), seen = new Set();
+    $("songs").querySelectorAll("button").forEach((b) => { const on = !q || b.textContent.toLowerCase().includes(q); b.hidden = !on; if (on) seen.add(b.dataset.g); });
+    $("songs").querySelectorAll(".label").forEach((h) => { h.hidden = !seen.has(h.dataset.g); });
+  });
+
+  // ── Bring your own: a Standard MIDI File, read here in the browser ──────────
+  function parseMidi(buf) {
+    const d = new DataView(buf); let p = 0;
+    const str = (n) => { let x = ""; for (let k = 0; k < n; k++) x += String.fromCharCode(d.getUint8(p++)); return x; };
+    if (str(4) !== "MThd") throw new Error("That doesn't look like a MIDI file.");
+    const hl = d.getUint32(p); p += 4;
+    const ntr = d.getUint16(p + 2), div = d.getUint16(p + 4); p += hl;
+    if (div & 0x8000) throw new Error("This MIDI file uses a timing format the lab can't read.");
+    const tempos = [], tracks = [];
+    for (let tr = 0; tr < ntr && p < d.byteLength - 8; tr++) {
+      if (str(4) !== "MTrk") break;
+      const end = p + 4 + d.getUint32(p); p += 4;
+      let tick = 0, status = 0; const open = new Map(), notes = [];
+      while (p < end) {
+        let dl = 0, b; do { b = d.getUint8(p++); dl = (dl << 7) | (b & 127); } while (b & 128);
+        tick += dl;
+        let st = d.getUint8(p);
+        if (st & 128) { status = st; p++; } else st = status;
+        if (st === 0xff) {
+          const type = d.getUint8(p++); let len = 0; do { b = d.getUint8(p++); len = (len << 7) | (b & 127); } while (b & 128);
+          if (type === 0x51 && len === 3) tempos.push([tick, (d.getUint8(p) << 16) | (d.getUint8(p + 1) << 8) | d.getUint8(p + 2)]);
+          p += len;
+        } else if (st === 0xf0 || st === 0xf7) { let len = 0; do { b = d.getUint8(p++); len = (len << 7) | (b & 127); } while (b & 128); p += len; }
+        else {
+          const hi = st & 0xf0, ch = st & 15, a = d.getUint8(p++), v = hi === 0xc0 || hi === 0xd0 ? 0 : d.getUint8(p++);
+          if (ch === 9) continue;                                   // drums have no pitch to play
+          const key = ch * 128 + a;
+          if (hi === 0x90 && v > 0) open.set(key, tick);
+          else if ((hi === 0x80 || hi === 0x90) && open.has(key)) { notes.push({ midi: a, on: open.get(key), off: tick }); open.delete(key); }
+        }
+      }
+      p = end;
+      if (notes.length) tracks.push(notes);
+    }
+    // Ticks to seconds, through every tempo change.
+    tempos.sort((a, b) => a[0] - b[0]);
+    if (!tempos.length || tempos[0][0] > 0) tempos.unshift([0, 500000]);
+    const marks = []; let sec = 0;
+    tempos.forEach(([tick, us], i) => { if (i) sec += ((tick - tempos[i - 1][0]) * tempos[i - 1][1]) / div / 1e6; marks.push([tick, sec, us]); });
+    const at = (tick) => { let m = marks[0]; for (const k of marks) if (k[0] <= tick) m = k; else break; return m[1] + ((tick - m[0]) * m[2]) / div / 1e6; };
+    return tracks.map((ns) => ns.map((n) => ({ midi: n.midi, t: at(n.on), end: at(n.off) })).sort((a, b) => a.t - b.t));
+  }
+  /** Turn parsed tracks into a tune the run can play: one line of melody, one of bass, nothing too dense. */
+  function tuneFromTracks(tracks, name) {
+    const mean = (ns) => ns.reduce((a, n) => a + n.midi, 0) / ns.length;
+    const usable = tracks.filter((t) => t.length >= 6);
+    if (!usable.length) throw new Error("No tune found in that file.");
+    let mel, bas = null;
+    if (usable.length > 1) {
+      const sorted = [...usable].sort((a, b) => mean(b) - mean(a));
+      mel = sorted[0]; bas = sorted[sorted.length - 1];
+    } else {
+      // One track with everything in it: the top line is the tune, anything well below it is the bass.
+      const all = usable[0], top = [], low = [];
+      for (const n of all) { const peers = all.filter((m) => Math.abs(m.t - n.t) < 0.04); const hi = Math.max(...peers.map((m) => m.midi)); if (n.midi === hi) top.push(n); else if (n.midi === Math.min(...peers.map((m) => m.midi)) && n.midi < hi - 6) low.push(n); }
+      mel = top; if (low.length >= 6) bas = low;
+    }
+    const t0 = Math.min(mel[0].t, bas ? bas[0].t : 1e9), LIMIT = 75;
+    const line = (ns, top, minGap, lo, hi) => {
+      const out = [];
+      for (const n of ns) {
+        const t = n.t - t0; if (t > LIMIT) break;
+        const prev = out[out.length - 1];
+        if (prev && t - prev.t < 0.03) { if (top ? n.midi > prev.midi : n.midi < prev.midi) prev.midi = n.midi; continue; }   // a chord: keep one note of it
+        if (prev && t - prev.t < minGap) continue;                                                                          // too fast for a marble
+        out.push({ t, midi: n.midi });
+      }
+      const m = out.reduce((a, n) => a + n.midi, 0) / out.length, shift = 12 * Math.round(((lo + hi) / 2 - m) / 12);
+      for (const n of out) { n.midi += shift; while (n.midi < lo) n.midi += 12; while (n.midi > hi) n.midi -= 12; }
+      return out;
+    };
+    const beat = 0.5, toList = (ns) => {
+      const list = ns[0].t > 0.005 ? [[0, ns[0].t / beat]] : [];
+      ns.forEach((n, i) => list.push([n.midi, Math.max(0.05, ((ns[i + 1] ? ns[i + 1].t : n.t + 1.5) - n.t) / beat)]));
+      return list;
+    };
+    const m = line(mel, true, 0.1, 55, 88), b = bas ? line(bas, false, 0.22, 36, 59) : null;
+    if (m.length < 4) throw new Error("No tune found in that file.");
+    const total = m[m.length - 1].t / beat, kinds = [["wood", "Marimba"], ["vibe", "Vibraphone"], ["white", "Marimba and piano"], ["bell", "Bells"]];
+    const parts = []; for (let k = 0; k * 32 < total || !k; k++) parts.push([k * 32, ...kinds[k % 4]]);
+    return { name, group: "Yours", bpm: 120, sharps: true, notes: toList(m), bass: b && b.length >= 4 ? toList(b) : null, parts, imported: { melody: m.length, bass: b ? b.length : 0 } };
+  }
+  async function openMidi(file) {
+    try {
+      const song = tuneFromTracks(parseMidi(await file.arrayBuffer()), file.name.replace(/\.[^.]+$/, "").replace(/[_-]+/g, " ").slice(0, 28) || "Your MIDI");
+      if (pianoOn) closePiano();
+      stop(); useSong(song, -1);
+      $("midiNote").textContent = `Read ${song.imported.melody} melody notes${song.imported.bass ? ` and ${song.imported.bass} bass notes` : ""} from ${file.name}. Nothing was uploaded.`;
+    } catch (e) { $("midiNote").textContent = e.message || "That file couldn't be read."; }
+  }
+  $("midi").addEventListener("click", () => $("midiFile").click());
+  $("midiFile").addEventListener("change", () => { const f = $("midiFile").files[0]; if (f) openMidi(f); $("midiFile").value = ""; });
+  addEventListener("dragover", (e) => { if (e.dataTransfer && [...e.dataTransfer.types].includes("Files")) { e.preventDefault(); document.body.classList.add("drop"); } });
+  addEventListener("dragleave", (e) => { if (!e.relatedTarget) document.body.classList.remove("drop"); });
+  addEventListener("drop", (e) => { document.body.classList.remove("drop"); const f = e.dataTransfer && e.dataTransfer.files[0]; if (f) { e.preventDefault(); openMidi(f); } });
+
+  let resume = false, dragging = false, speedTimer = 0;
+  $("speed").addEventListener("input", (e) => {
+    speed = Number(e.target.value);
+    $("speedOut").textContent = `${speed}×`;
+    if (mode === "play") resume = true;
+    stop();
+    clearTimeout(speedTimer);
+    speedTimer = setTimeout(() => { rebuild(); run.born = 0; camY = 0; if (resume && !dragging) { resume = false; play(); } }, 140);
+  });
+  $("speed").addEventListener("pointerdown", () => { dragging = true; });
+  addEventListener("pointerup", () => { dragging = false; if (resume) $("speed").dispatchEvent(new Event("input")); });
+  $("play").addEventListener("click", play);
+  $("toggle").addEventListener("click", () => (mode === "play" ? stop() : play()));
+  $("write").addEventListener("click", openPiano);
+  $("cancel").addEventListener("click", closePiano);
+  $("build").addEventListener("click", buildFromRecording);
+  $("path").addEventListener("click", () => {
+    showPath = !showPath;
+    $("path").setAttribute("aria-pressed", String(showPath));
+  });
+  $("bass").addEventListener("click", () => {
+    bassOn = !bassOn;
+    $("bass").setAttribute("aria-pressed", String(bassOn));
+    const go = mode === "play";
+    stop(); rebuild(); camY = 0; setUI();
+    if (go) play();
+  });
+  $("open").addEventListener("click", () => setSheet(!sheetOpen));
+
+  let resizeTimer = 0;
+  function measure() {
+    if (exporting) return;
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    W = innerWidth; H = innerHeight;
+    canvas.width = Math.round(W * dpr);
+    canvas.height = Math.round(H * dpr);
+    const z = clamp(W / 560, 0.7, 1.3), FW = Math.min(W / z, 860);
+    base = { z, FW };
+    view = { z, FW, ox: (W - FW * z) / 2, Hw: H / z, visH: H };
+    vignette = null;
+    if (g3) sizeGL(W, H, g3.ratio);
+  }
+  addEventListener("resize", () => {
+    if (exporting) return;
+    const before = view.FW;
+    measure();
+    setSheet(sheetOpen);
+    easeView(1);
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => {
+      if (view.FW !== before || !run) { const born = run.born; rebuild(); run.born = born; }
+      if (mode === "done") placeAgain();
+    }, 120);
+  });
+  measure();
+  setupPiano();
+  useSong(SONGS[0], 0);
+  setSheet(false);
+  easeView(1);
+  setUI();
+  requestAnimationFrame(frame);
+  initGL();
+
+  /** The framing used for a video of a given size: vertical fills the frame, wide leaves wall either side. */
+  function frameView(w, h) {
+    const z = w < h ? w / 560 : h / 720, FW = Math.min(w / z, 860);
+    return { z, FW, ox: (w - FW * z) / 2, Hw: h / z, visH: h };
+  }
+
+  /**
+   * The whole run as plain data, for anything that wants to rebuild it elsewhere
+   * (see SCORE.md beside this file for the format).
+   */
+  function score(tune, opt = {}) {
+    const song = typeof tune === "number" ? SONGS[tune] : SONGS.find((x) => x.name.toLowerCase() === String(tune).toLowerCase()) || current;
+    const wide = opt.aspect === "16:9", fw = wide ? 1920 : 1080, fh = wide ? 1080 : 1920;
+    const sp = opt.speed || 1, keep = [view, bassOn];
+    view = frameView(fw, fh);
+    if (opt.bass !== undefined) bassOn = !!opt.bass;
+    const r = build(song, sp), fv = view;
+    const r3 = (x) => Math.round(x * 1000) / 1000, pt = (x, y) => [r3(x), r3(y)];
+    const marbles = [], keys = [], hits = [], chutes = [], cups = [], sounds = [], tracks = [];
+    r.voices.forEach((v, vi) => {
+      const id = v.low ? "bass" : "melody";
+      const segments = [{ type: "fall", t0: r3(v.tRel), t1: r3(v.hits[0].t), p0: pt(v.chute.x, v.chute.y), v0: [0, 0], fromKey: null }];
+      v.hits.forEach((h, i) => {
+        const kid = `${id}-${i}`, b = h.bar, next = v.hits[i + 1];
+        const m = h.felt ? 0.7 : b.ht > 13 ? 1.15 : 1;
+        keys.push({ id: kid, marble: id, type: h.kind, round: !!h.round, midi: h.felt ? null : h.midi, note: h.felt ? null : h.name,
+          color: h.color, face: h.face, length: r3(b.hl * 2), width: r3(b.ht * 2), depth: 30,
+          center: pt(b.cx, b.cy), angle: r3(Math.atan2(b.ty, b.tx)), normal: pt(b.nx, b.ny), contact: pt(h.x - b.nx * v.R, h.y - b.ny * v.R),
+          mount: pt(b.cx, b.cy), mountDrawnAt: pt(b.cx + MOUNT[0] * m, b.cy + MOUNT[1] * m), standoff: 48 });
+        const prev = segments[segments.length - 1];
+        const vin = [prev.v0[0], prev.v0[1] + G * (h.t - prev.t0)];
+        hits.push({ t: r3(h.t), marble: id, key: kid, midi: h.felt ? null : h.midi, sound: h.felt ? "felt" : KINDS[h.kind].sound, playedMidi: h.felt ? null : h.midi + KINDS[h.kind].up,
+          loudness: r3(h.felt ? 0.32 : clamp(0.5 + h.vin / 2600, 0.5, 1)), at: pt(h.x, h.y), vIn: pt(vin[0], vin[1]), vOut: pt(h.vout[0], h.vout[1]) });
+        const t1 = next ? next.t : v.cup.t;
+        if (h.rail) {
+          const rl = h.rail, tid = `rail-${tracks.length}`, pts = [], ts = [];
+          for (let k = 0; k < rl.ts.length; k++) { pts.push(pt(rl.pts[k * 2], rl.pts[k * 2 + 1])); ts.push(r3(h.t + rl.ts[k])); }
+          tracks.push({ id: tid, type: "rail", marble: id, fromKey: kid, toKey: `${id}-${i + 1}`, t0: r3(h.t), t1: r3(h.t + rl.T1), radius: v.R, kappa: r3(rl.kap), pts, ts });
+          segments.push({ type: "rail", t0: r3(h.t), t1: r3(h.t + rl.T1), track: tid, pts, ts, fromKey: kid });
+          segments.push({ type: "fall", t0: r3(h.t + rl.T1), t1: r3(t1), p0: pt(rl.pr[0], rl.pr[1]), v0: pt(rl.vr[0], rl.vr[1]), fromKey: null });
+        } else segments.push({ type: "fall", t0: r3(h.t), t1: r3(t1), p0: pt(h.x, h.y), v0: pt(h.vout[0], h.vout[1]), fromKey: kid });
+      });
+      marbles.push({ id, radius: v.R, glass: `rgb(${v.glass})`, swirl: [v.body, v.swirl], release: { t: r3(v.tRel), at: pt(v.chute.x, v.chute.y) },
+        segments, rest: { t: r3(v.cup.t), at: pt(v.cup.x, v.cup.y) } });
+      const w = v.R + 5;
+      chutes.push({ marble: id, at: pt(v.chute.x, v.chute.y), innerHalfWidth: w, tubeTop: r3(v.chute.y - v.R - 44), tubeBottom: r3(v.chute.y + v.R + 4), funnelTop: r3(v.chute.y - v.R - 64), gateOpens: r3(v.tRel) });
+      cups.push({ marble: id, at: pt(v.cup.x, v.cup.y), innerHalfWidth: v.cup.w, rim: r3(v.cup.y - v.R - 13), floor: r3(v.cup.y + v.R + 3), t: r3(v.cup.t) });
+      sounds.push({ t: r3(v.cup.t), marble: id, sound: "felt", loudness: 0.7 });
+    });
+    hits.sort((a, b) => a.t - b.t);
+    // The camera, stepped exactly as the page steps it.
+    const lead = 0.7, cam = [], step = 1 / 60, Hw = fh / fv.z;
+    let cy = 0;
+    for (let i = 0, t = -lead; t <= r.end + 1e-6; i++, t = -lead + i * step) {
+      const target = Math.max(0, r.yAt(clamp(t, 0, r.cupT)) - Hw * 0.6);
+      cy += (target - cy) * (1 - Math.exp(-step * 5));
+      if (i % 2 === 0) { const [roll, punch] = camFx(r, t); cam.push([r3(t), r3(fv.FW / 2), r3(cy + Hw / 2), r3(Hw / punch), Math.round(roll * 1e5) / 1e5]); }
+    }
+    [view, bassOn] = keep;
+    return {
+      format: "marble-run-score/1",
+      units: { length: "px", time: "s", angle: "rad", velocity: "px/s", gravity: "px/s^2" },
+      tune: { name: song.name, bpm: song.bpm, speed: sp, beat: r3(60 / (song.bpm * sp)) },
+      duration: r3(r.end), firstNote: FALL, lastNoteEnds: r3(r.tLast),
+      gravity: [0, G],
+      field: { width: r3(fv.FW), top: r3(r.y0), bottom: r3(r.y1), bassLaneWidth: r3(r.LW), sink: r3(r.sink) },
+      frame: { aspect: wide ? "16:9" : "9:16", width: fw, height: fh, pxPerUnit: r3(fv.z), fieldLeft: r3(fv.ox) },
+      layoutFlaws: r.flaws,
+      sections: r.sections.map((x) => ({ t: r3(x.t), title: x.title })),
+      marbles, keys, hits, extraSounds: sounds, tracks,
+      fixtures: { chutes, cups },
+      camera: { projection: "orthographic", lead, columns: ["t", "centerX", "centerY", "viewHeight", "roll"], samples: cam },
+    };
+  }
+
+  // ── Make a video ────────────────────────────────────────────────────────────
+  // Nothing here runs in real time. Each frame is drawn for its exact timestamp and
+  // handed to an encoder; the sound is rendered by the same synth on an offline
+  // context. A slow machine takes longer, but the video comes out identical.
+  const MP4_MUXER = "https://cdn.jsdelivr.net/npm/mp4-muxer@5.2.1/build/mp4-muxer.mjs";
+  const WEBM_MUXER = "https://cdn.jsdelivr.net/npm/webm-muxer@5.1.3/build/webm-muxer.mjs";
+  let cancelExport = false;
+  const breathe = () => new Promise((r) => { const c = new MessageChannel(); c.port1.onmessage = () => r(); c.port2.postMessage(0); });
+
+  async function pickCodecs(w, h, fps, force) {
+    if (typeof VideoEncoder === "undefined" || force === "recorder") return null;
+    const bitrate = Math.round(w * h * fps * 0.13 / 1e6) * 1e6;       // 16 Mbps at 1080p60, 8 at 30
+    const vids = [["avc", "avc1.64002A"], ["avc", "avc1.640033"], ["avc", "avc1.4D402A"], ["avc", "avc1.42E02A"],
+      ["vp9", "vp09.00.41.08"], ["vp9", "vp09.00.50.08"], ["av1", "av01.0.09M.08"]];
+    let video = null, audio = null;
+    for (const [kind, codec] of vids) {
+      if (force === "webm" && kind === "avc") continue;
+      const cfg = { codec, width: w, height: h, bitrate, framerate: fps, latencyMode: "quality" };
+      try { if ((await VideoEncoder.isConfigSupported(cfg)).supported) { video = { kind, cfg }; break; } } catch (e) {}
+    }
+    if (!video) return null;
+    if (typeof AudioEncoder !== "undefined") for (const [kind, codec] of [["aac", "mp4a.40.2"], ["opus", "opus"]]) {
+      if (kind === "aac" && video.kind !== "avc") continue;
+      const cfg = { codec, sampleRate: 48000, numberOfChannels: 2, bitrate: 192000 };
+      try { if ((await AudioEncoder.isConfigSupported(cfg)).supported) { audio = { kind, cfg }; break; } } catch (e) {}
+    }
+    return { video, audio };
+  }
+
+  /** The tune's sound, start to finish, rendered faster than real time. */
+  function renderAudio(r, lead, total) {
+    const rate = 48000, off = new OfflineAudioContext(2, Math.ceil(total * rate), rate);
+    const keep = [ac, master, send, noiseBuf];
+    ac = off;
+    const g = makeGraph(off);
+    master = g.master; send = g.send; noiseBuf = g.noiseBuf;
+    const bus = makeBus();
+    for (const e of r.events) strike(e, lead + e.t, bus);
+    [ac, master, send, noiseBuf] = keep;
+    return off.startRendering();
+  }
+
+  function drawTitleCard(tv, name) {
+    const a = 1 - clamp((tv - 1.3) / 0.35), u = Math.min(W, H) / 1080;
+    if (a <= 0) return;
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.textAlign = "center"; ctx.textBaseline = "alphabetic";
+    const fs = Math.min(92 * u, (W * 0.74) / Math.max(4, name.length * 0.74));
+    ctx.font = `900 ${fs}px "Anybody", system-ui`;
+    try { ctx.fontStretch = "expanded"; ctx.letterSpacing = "-0.02em"; } catch (e) {}
+    const tw = ctx.measureText(name.toUpperCase()).width;
+    const cw = Math.max(tw, 420 * u) + 110 * u, ch = fs + 150 * u, cx = W / 2, cy = H * 0.5 - (1 - a) * 40 * u;
+    ctx.globalAlpha = a;
+    ctx.fillStyle = INK; rr(cx - cw / 2 + 10 * u, cy - ch / 2 + 10 * u, cw, ch, 14 * u); ctx.fill();
+    ctx.fillStyle = PLASTER; rr(cx - cw / 2, cy - ch / 2, cw, ch, 14 * u); ctx.fill();
+    ctx.lineWidth = 4 * u; ctx.strokeStyle = INK; ctx.stroke();
+    ctx.fillStyle = INK; ctx.fillText(name.toUpperCase(), cx, cy + fs * 0.5);
+    try { ctx.fontStretch = "normal"; ctx.letterSpacing = "0.1em"; } catch (e) {}
+    ctx.font = `700 ${Math.round(24 * u)}px "Anybody", system-ui`; ctx.fillStyle = BRICK;
+    ctx.fillText("MARBLE RUN", cx, cy - fs * 0.5 - 14 * u);
+    try { ctx.letterSpacing = "0px"; } catch (e) {}
+    ctx.globalAlpha = 1;
+  }
+  function drawCredit(age) {
+    const u = Math.min(W, H) / 1080;
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.globalAlpha = clamp((age - 0.5) / 0.5) * 0.85;
+    ctx.textAlign = "center"; ctx.textBaseline = "alphabetic"; ctx.fillStyle = "#5a3a26";
+    try { ctx.letterSpacing = "0.08em"; } catch (e) {}
+    ctx.font = `700 ${Math.round(25 * u)}px "Anybody", system-ui`;
+    ctx.fillText("labs.rushilchopra.com", W / 2, H - 46 * u);
+    try { ctx.letterSpacing = "0px"; } catch (e) {}
+    ctx.globalAlpha = 1;
+  }
+
+  /**
+   * Render the current tune to a video file.
+   * opt: { w, h, fps, title, force } — returns { blob, ext, note }.
+   */
+  async function exportVideo(opt, onProgress = () => {}) {
+    const { w, h, fps } = opt;
+    try { await document.fonts.load('900 40px "Anybody"'); } catch (e) {}
+    stop();
+    const live = { ctx, W, H, dpr, view, run, camY, poster };
+    const cv = document.createElement("canvas"); cv.width = w; cv.height = h;
+    exporting = true; cancelExport = false; setUI();
+    let venc = null, aenc = null;
+    try {
+      ctx = cv.getContext("2d", { alpha: false }); W = w; H = h; dpr = 1; view = frameView(w, h); vignette = null; poster = null; camY = 0;
+      run = build(current, speed); run.born = -1e9;
+      if (g3) { sizeGL(w, h, 1); setRunGL(run); g3.insL = g3.insB = 0; }
+      await loadFor(run);
+      const name = run.song.name, lead = opt.title ? 1.9 : 0.7, mainEnd = run.cupT + 0.9, outro = 3.2;
+      const total = lead + mainEnd + outro, frames = Math.round(total * fps);
+      const paint = (tv, dt, first) => {
+        const t = tv - lead;
+        if (t < mainEnd) {
+          if (g3) {
+            renderGL(t, 0, first ? 0 : dt);
+            ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.drawImage(g3.renderer.domElement, 0, 0, w, h);
+            drawOverlay(t, false);
+          } else {
+            const target = camTarget(t);
+            camY = first ? target : camY + (target - camY) * (1 - Math.exp(-dt * 5));
+            drawWorld(t, 0);
+          }
+          if (opt.title) drawTitleCard(tv, name);
+        } else { drawPoster(t - mainEnd); drawCredit(t - mainEnd); }
+      };
+      const preview = () => {
+        const c = live.ctx, cw = live.W * live.dpr, chh = live.H * live.dpr, k = Math.min(cw / w, chh / h) * 0.94;
+        c.setTransform(1, 0, 0, 1, 0, 0); c.fillStyle = INK; c.fillRect(0, 0, cw, chh);
+        c.drawImage(cv, (cw - w * k) / 2, (chh - h * k) / 2, w * k, h * k);
+      };
+      const codecs = await pickCodecs(w, h, fps, opt.force);
+      if (!codecs) return await recordLive(cv, paint, total, lead, fps, onProgress, preview);
+
+      const mp4 = codecs.video.kind === "avc";
+      const mod = await import(mp4 ? MP4_MUXER : WEBM_MUXER);
+      const target = new mod.ArrayBufferTarget();
+      const muxer = new mod.Muxer({
+        target,
+        video: { codec: mp4 ? "avc" : codecs.video.kind === "vp9" ? "V_VP9" : "V_AV1", width: w, height: h, frameRate: fps },
+        ...(codecs.audio ? { audio: { codec: mp4 ? codecs.audio.kind : "A_OPUS", numberOfChannels: 2, sampleRate: 48000 } } : {}),
+        ...(mp4 ? { fastStart: "in-memory" } : {}),
+        firstTimestampBehavior: "offset",
+      });
+      let failed = null;
+      onProgress(0, "Rendering the sound…");
+      if (codecs.audio) {
+        const buf = await renderAudio(run, lead, total);
+        aenc = new AudioEncoder({ output: (c, m) => muxer.addAudioChunk(c, m), error: (e) => { failed = e; } });
+        aenc.configure(codecs.audio.cfg);
+        // An AAC encoder delays its output by a fixed number of samples that an MP4 without an
+        // edit list can't declare, so start that far into the (silent) lead-in instead.
+        const skip = codecs.audio.kind === "aac" ? (/Mac|iPhone|iPad/.test(navigator.userAgent) ? 2112 : 1024) : 0;
+        const L = buf.getChannelData(0).subarray(skip), R = buf.getChannelData(1).subarray(skip), n = Math.min(L.length, Math.round(total * 48000) - skip), step = 4800;
+        for (let i = 0; i < n; i += step) {
+          const len = Math.min(step, n - i), data = new Float32Array(len * 2);
+          data.set(L.subarray(i, i + len), 0); data.set(R.subarray(i, i + len), len);
+          const ad = new AudioData({ format: "f32-planar", sampleRate: 48000, numberOfFrames: len, numberOfChannels: 2, timestamp: Math.round((i / 48000) * 1e6), data });
+          aenc.encode(ad); ad.close();
+        }
+        await aenc.flush(); aenc.close(); aenc = null;
+      }
+      venc = new VideoEncoder({ output: (c, m) => muxer.addVideoChunk(c, m), error: (e) => { failed = e; } });
+      venc.configure(codecs.video.cfg);
+      const began = performance.now();
+      for (let f = 0; f < frames; f++) {
+        if (cancelExport) throw new Error("cancelled");
+        if (failed) throw failed;
+        paint(f / fps, 1 / fps, f === 0);
+        const vf = new VideoFrame(cv, { timestamp: Math.round((f * 1e6) / fps), duration: Math.round(1e6 / fps) });
+        venc.encode(vf, { keyFrame: f % (fps * 2) === 0 }); vf.close();
+        while (venc.encodeQueueSize > 6) await breathe();   // never get far ahead of the encoder
+        if (f % 5 === 0) {
+          const done = (f + 1) / frames, left = ((performance.now() - began) / 1000) * (1 / done - 1);
+          onProgress(done, f < fps ? "" : `about ${left < 90 ? Math.ceil(left) + " s" : Math.ceil(left / 60) + " min"} left`);
+          preview();
+          await breathe();
+        }
+      }
+      await venc.flush(); venc.close(); venc = null;
+      if (failed) throw failed;
+      muxer.finalize();
+      const blob = new Blob([target.buffer], { type: mp4 ? "video/mp4" : "video/webm" });
+      const how = `${codecs.video.cfg.codec.split(".")[0] === "avc1" ? "H.264" : codecs.video.kind.toUpperCase()}${codecs.audio ? " + " + codecs.audio.kind.toUpperCase() : ", no sound"}`;
+      return { blob, ext: mp4 ? "mp4" : "webm", note: `${w}×${h}, ${fps} fps, ${total.toFixed(1)} s, ${how}` };
+    } finally {
+      try { if (venc && venc.state !== "closed") venc.close(); if (aenc && aenc.state !== "closed") aenc.close(); } catch (e) {}
+      ({ ctx, W, H, dpr, view, run, camY, poster } = live);
+      vignette = null; poster = null; exporting = false;
+      if (g3) { sizeGL(W, H, g3.ratio); setRunGL(run); }
+      setUI();
+    }
+  }
+
+  /** Last resort, for browsers without WebCodecs: play it once for real and record the canvas. */
+  async function recordLive(cv, paint, total, lead, fps, onProgress, preview) {
+    if (typeof MediaRecorder === "undefined" || !cv.captureStream) throw new Error("This browser can't encode video.");
+    audio();
+    const mime = ["video/mp4;codecs=avc1.64002A,mp4a.40.2", "video/webm;codecs=vp9,opus", "video/webm;codecs=vp8,opus", "video/webm"].find((m) => MediaRecorder.isTypeSupported(m));
+    if (!mime) throw new Error("This browser can't encode video.");
+    const dest = ac.createMediaStreamDestination(); liveOut.connect(dest);
+    const stream = cv.captureStream(fps);
+    dest.stream.getAudioTracks().forEach((t) => stream.addTrack(t));
+    const rec = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 12e6, audioBitsPerSecond: 192000 });
+    const parts = [];
+    rec.ondataavailable = (e) => { if (e.data.size) parts.push(e.data); };
+    const stopped = new Promise((r) => { rec.onstop = r; });
+    const bus = makeBus(), t0 = ac.currentTime + 0.2;
+    try {
+      paint(0, 0, true); rec.start(500);
+      for (const e of run.events) strike(e, t0 + lead + e.t, bus);
+      let last = 0;
+      for (;;) {
+        await new Promise((r) => requestAnimationFrame(r));
+        if (cancelExport) throw new Error("cancelled");
+        const tv = ac.currentTime - t0;
+        if (tv >= total) break;
+        if (tv >= 0) { paint(tv, Math.min(0.05, tv - last), false); last = tv; preview(); }
+        onProgress(clamp(tv / total), `recording live: ${Math.ceil(total - Math.max(0, tv))} s left`);
+      }
+    } finally {
+      bus.gain.value = 0; setTimeout(() => bus.disconnect(), 300);
+      if (rec.state !== "inactive") rec.stop();
+      await stopped;
+      liveOut.disconnect(dest); stream.getTracks().forEach((t) => t.stop());
+    }
+    return { blob: new Blob(parts, { type: mime.split(";")[0] }), ext: mime.startsWith("video/mp4") ? "mp4" : "webm", note: `${cv.width}×${cv.height}, recorded live` };
+  }
+
+  // The dialog.
+  const ex = { shape: "v", fps: 60, title: true, url: null };
+  function exShow(which) { for (const id of ["exSetup", "exBusy", "exDone"]) $(id).hidden = id !== which; }
+  function exOpen() {
+    stop(); if (pianoOn) closePiano();
+    $("exName").textContent = current.name;
+    $("exErr").hidden = true;
+    exShow("exSetup");
+    $("scrim").hidden = false; $("export").hidden = false;
+    $("exGo").focus();
+  }
+  function exClose() {
+    if (exporting) return;
+    $("scrim").hidden = true; $("export").hidden = true;
+    if (ex.url) { URL.revokeObjectURL(ex.url); ex.url = null; }
+  }
+  for (const [id, key] of [["exShape", "shape"], ["exFps", "fps"]]) $(id).addEventListener("click", (e) => {
+    const b = e.target.closest("button"); if (!b) return;
+    ex[key] = key === "fps" ? Number(b.dataset.v) : b.dataset.v;
+    $(id).querySelectorAll("button").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
+  });
+  $("exTitle").addEventListener("click", () => { ex.title = !ex.title; $("exTitle").setAttribute("aria-pressed", String(ex.title)); });
+  $("exGo").addEventListener("click", async () => {
+    exShow("exBusy"); $("exErr").hidden = true;
+    $("exBar").style.width = "0%"; $("exPct").textContent = "Getting ready…";
+    const [w, h] = ex.shape === "v" ? [1080, 1920] : [1920, 1080];
+    try {
+      const out = await exportVideo({ w, h, fps: ex.fps, title: ex.title }, (p, msg) => {
+        const pc = Math.round(p * 100);
+        $("exBar").style.width = pc + "%"; $("exMeter").setAttribute("aria-valuenow", pc);
+        $("exPct").textContent = p ? `${pc}%${msg ? " · " + msg : ""}` : msg;
+      });
+      const slug = current.name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+      ex.url = URL.createObjectURL(out.blob);
+      $("exSave").href = ex.url; $("exSave").download = `marble-run-${slug}.${out.ext}`;
+      $("exSave").textContent = `Download ${out.ext.toUpperCase()}`;
+      $("exInfo").textContent = `${out.note} · ${(out.blob.size / 1048576).toFixed(1)} MB`;
+      exShow("exDone"); $("exSave").focus();
+    } catch (err) {
+      exShow("exSetup");
+      if (String(err && err.message) !== "cancelled") { $("exErr").textContent = `That didn't work: ${err && err.message ? err.message : err}`; $("exErr").hidden = false; }
+    }
+  });
+  $("exCancel").addEventListener("click", () => { cancelExport = true; });
+  $("exBack").addEventListener("click", () => { if (ex.url) { URL.revokeObjectURL(ex.url); ex.url = null; } exShow("exSetup"); });
+  $("exClose").addEventListener("click", exClose);
+  $("scrim").addEventListener("click", exClose);
+  $("video").addEventListener("click", exOpen);
+  addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("export").hidden) exClose(); });
+
+  // For screenshots and tinkering: marbleRun.freeze(12.5) holds the run at 12.5 s.
+  window.marbleRun = {
+    freeze(t) { frozen = t; if (t === null) stop(); else { mode = "idle"; $("play").hidden = true; } },
+    song(i) { stop(); useSong(SONGS[i] || surprise(), i); },
+    names: () => SONGS.map((x) => x.name),
+    openMidi,
+    done() { finish(); },
+    get run() { return run; },
+    get perf() { return perfNow(); },
+    resetPerf() { stats.n = 0; stats.i = 0; },
+    score,
+    exportVideo,
+    async note(kind, midi) {
+      if (KINDS[kind].sample) await loadSample(KINDS[kind].sample);
+      const off = new OfflineAudioContext(2, 48000 * 3, 48000), keep = [ac, master, send, noiseBuf];
+      ac = off; const g = makeGraph(off); master = g.master; send = g.send; noiseBuf = g.noiseBuf;
+      strike({ midi, vel: 0.85, pan: 0, kind }, 0.05, makeBus());
+      [ac, master, send, noiseBuf] = keep;
+      return off.startRendering();
+    },
+  };
+})();
+</script>
+</body>
+</html>

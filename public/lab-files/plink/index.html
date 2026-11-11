@@ -1,0 +1,461 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Plink</title>
+<link rel="stylesheet" href="../kit.css">
+<style>
+  body { background: var(--umber); overflow: hidden; }
+  canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+  canvas[data-tool="draw"] { cursor: crosshair; }
+  canvas[data-tool="erase"] { cursor: cell; }
+  canvas.grab { cursor: grab; }
+
+  .dock { position: fixed; left: 16px; bottom: 16px; width: min(380px, calc(100% - 32px)); display: grid; gap: 12px; }
+  .grid2 { display: grid; grid-template-columns: auto 1fr auto; align-items: center; column-gap: 10px; }
+  .grid2 output { font-weight: 700; font-variant-numeric: tabular-nums; font-size: 13px; min-width: 4ch; text-align: right; }
+  .head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .collapse { display: none; }
+
+  .sound {
+    position: fixed; top: 14px; right: 16px;
+    background: var(--persimmon); border-color: var(--umber); color: var(--umber);
+    box-shadow: 3px 3px 0 var(--plaster);
+  }
+  .sound:hover { background: #ff7a42; }
+  .sound[aria-pressed="true"] { background: var(--plaster); color: var(--umber); box-shadow: none; }
+
+  .hint {
+    position: fixed; right: 20px; bottom: 18px; margin: 0; max-width: 30ch; text-align: right;
+    color: var(--plaster); font-family: var(--display); font-weight: 800; font-variation-settings: "wdth" 120;
+    font-size: 17px; line-height: 1.15; pointer-events: none; transition: opacity 600ms var(--ease);
+  }
+  .hint.gone { opacity: 0; }
+
+  @media (max-width: 560px) {
+    .dock { left: 8px; right: 8px; bottom: 8px; width: auto; }
+    .dock.closed .body { display: none; }
+    .collapse { display: inline-flex; }
+    .hint { right: 12px; left: 12px; bottom: auto; top: 92px; text-align: left; font-size: 15px; max-width: 26ch; }
+  }
+</style>
+</head>
+<body>
+<canvas id="c" data-tool="draw" aria-label="Plink: drag to draw lines. Balls fall from the droppers and play a note when they bounce."></canvas>
+<p class="hint" id="hint">Drag to draw a line. Balls play it when they bounce: short lines sing high, long ones low.</p>
+<button class="btn sound" id="sound" aria-pressed="false">Turn sound on</button>
+
+<section class="dock panel" id="dock" aria-label="Controls">
+  <div class="head">
+    <div class="seg" role="group" aria-label="Tool" id="tool">
+      <button data-v="draw" aria-pressed="true">Draw</button><button data-v="erase">Erase</button>
+    </div>
+    <button class="btn collapse" id="collapse" aria-expanded="true">Hide</button>
+  </div>
+  <div class="body" style="display:grid; gap:12px">
+    <div class="grid2">
+      <label class="label" for="tempo">Tempo</label>
+      <input type="range" id="tempo" min="50" max="200" step="1" value="96">
+      <output id="tempoOut">96</output>
+    </div>
+    <div style="display:grid; gap:6px">
+      <span class="label">Scale</span>
+      <div class="seg" role="group" aria-label="Scale" id="scale">
+        <button data-v="major" aria-pressed="true">Sunny</button><button data-v="minor">Moody</button><button data-v="in">Temple</button><button data-v="whole">Dream</button>
+      </div>
+    </div>
+    <div class="row">
+      <button class="btn solid" id="preset">Next layout</button>
+      <button class="btn" id="dropper">Add dropper</button>
+      <button class="btn" id="clear">Clear</button>
+      <button class="btn" id="pause">Pause</button>
+    </div>
+  </div>
+</section>
+
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const canvas = $("c"), ctx = canvas.getContext("2d");
+  let W = 0, H = 0, dpr = 1;
+
+  // ── Music ──────────────────────────────────────────────────────────────────
+  const SCALES = {
+    major: [0, 2, 4, 7, 9],
+    minor: [0, 3, 5, 7, 10],
+    in: [0, 1, 5, 7, 8],
+    whole: [0, 2, 4, 6, 8, 10],
+  };
+  let scale = "major";
+  const DEGREES = 15;          // about three octaves
+  const ROOT = 48;             // C3
+  const NAMES = ["C", "C♯", "D", "E♭", "E", "F", "F♯", "G", "A♭", "A", "B♭", "B"];
+
+  /** Longer lines ring lower. Lengths map to scale steps on a log curve. */
+  function degreeFor(length) {
+    const t = Math.log(Math.max(24, Math.min(length, 720)) / 24) / Math.log(720 / 24);
+    return Math.round((1 - t) * (DEGREES - 1));
+  }
+  function midiFor(degree) {
+    const s = SCALES[scale];
+    return ROOT + 12 * Math.floor(degree / s.length) + s[degree % s.length];
+  }
+  const freqFor = (midi) => 440 * Math.pow(2, (midi - 69) / 12);
+  const nameFor = (midi) => NAMES[midi % 12] + (Math.floor(midi / 12) - 1);
+
+  let ac = null, master = null, reverb = null, soundOn = false, voices = 0;
+  function startAudio() {
+    if (ac) { ac.resume(); return; }
+    ac = new (window.AudioContext || window.webkitAudioContext)();
+    const comp = ac.createDynamicsCompressor();
+    comp.threshold.value = -16; comp.ratio.value = 4;
+    master = ac.createGain(); master.gain.value = 0.8;
+    master.connect(comp); comp.connect(ac.destination);
+    // A small room: decaying stereo noise as the impulse.
+    const len = Math.floor(ac.sampleRate * 2.4);
+    const ir = ac.createBuffer(2, len, ac.sampleRate);
+    for (let ch = 0; ch < 2; ch++) {
+      const d = ir.getChannelData(ch);
+      for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 3.2);
+    }
+    reverb = ac.createConvolver(); reverb.buffer = ir;
+    const wet = ac.createGain(); wet.gain.value = 0.32;
+    reverb.connect(wet); wet.connect(master);
+  }
+
+  /** A soft mallet: a sine with a quick, bright overtone, like a marimba bar. */
+  function strike(freq, velocity, pan) {
+    if (!soundOn || !ac || voices > 28) return;
+    const t = ac.currentTime;
+    const v = Math.min(1, velocity) * 0.32;
+    const decay = 1.6 * Math.pow(220 / freq, 0.35);
+    const out = ac.createGain();
+    const p = ac.createStereoPanner ? ac.createStereoPanner() : null;
+    if (p) { p.pan.value = pan; out.connect(p); p.connect(master); p.connect(reverb); }
+    else { out.connect(master); out.connect(reverb); }
+
+    const body = ac.createOscillator(); body.type = "sine"; body.frequency.value = freq;
+    const bg = ac.createGain();
+    bg.gain.setValueAtTime(0, t);
+    bg.gain.linearRampToValueAtTime(v, t + 0.004);
+    bg.gain.exponentialRampToValueAtTime(0.0001, t + decay);
+    body.connect(bg); bg.connect(out);
+
+    const tick = ac.createOscillator(); tick.type = "sine"; tick.frequency.value = freq * 3.93;
+    const tg = ac.createGain();
+    tg.gain.setValueAtTime(0, t);
+    tg.gain.linearRampToValueAtTime(v * 0.35, t + 0.002);
+    tg.gain.exponentialRampToValueAtTime(0.0001, t + 0.12);
+    tick.connect(tg); tg.connect(out);
+
+    body.start(t); tick.start(t);
+    body.stop(t + decay + 0.05); tick.stop(t + 0.15);
+    voices++;
+    body.onended = () => { voices--; out.disconnect(); };
+  }
+
+  // ── The world ──────────────────────────────────────────────────────────────
+  const R = 6;                // ball radius
+  const G = 1250;             // gravity, px/s²
+  const BOUNCE = 0.9;
+  const MAX_SPEED = 1200;
+  let lines = [];             // { a:[x,y], b:[x,y], degree, hitAt, amp, lastNote }
+  let balls = [];             // { p:[x,y], v:[x,y], born }
+  let droppers = [];          // { p:[x,y], pulse }
+  let bpm = 96, paused = false;
+
+  const COLORS = ["#8f1d12", "#b32317", "#d8401f", "#f2662a", "#f4893b", "#f6a640", "#f4c04e", "#f7d77f", "#fbe6cc"];
+  const colorFor = (degree) => COLORS[Math.round((degree / (DEGREES - 1)) * (COLORS.length - 1))];
+
+  function addLine(a, b) {
+    const l = Math.hypot(b[0] - a[0], b[1] - a[1]);
+    lines.push({ a, b, length: l, degree: degreeFor(l), hitAt: -1e9, amp: 0, lastNote: 0 });
+  }
+
+  const LAYOUTS = [
+    // Stairs: short treads stepping down, left and right, like a stairwell.
+    () => {
+      droppers = [{ p: [W * 0.22, 40], pulse: 0 }];
+      const n = 7;
+      for (let i = 0; i < n; i++) {
+        const y = H * (0.18 + (i * 0.62) / n);
+        const x = W * (0.16 + (i % 2) * 0.1 + i * 0.07);
+        const w = Math.min(W, 900) * (0.16 - i * 0.012);
+        const tilt = (i % 2 ? -1 : 1) * 10;
+        addLine([x, y], [x + w, y + tilt + 14]);
+      }
+      addLine([W * 0.5, H * 0.86], [W * 0.84, H * 0.72]);
+    },
+    // Ping-pong: two long rails that hand the ball back and forth.
+    () => {
+      droppers = [{ p: [W * 0.5, 40], pulse: 0 }, { p: [W * 0.62, 40], pulse: 0 }];
+      for (let i = 0; i < 4; i++) {
+        const y = H * (0.25 + i * 0.17);
+        if (i % 2) addLine([W * 0.3, y], [W * 0.58, y + 50]);
+        else addLine([W * 0.75, y], [W * 0.46, y + 50]);
+      }
+      addLine([W * 0.2, H * 0.4], [W * 0.26, H * 0.5]);
+      addLine([W * 0.8, H * 0.55], [W * 0.86, H * 0.47]);
+    },
+    // Chimes: a fan of short bars under a single dropper.
+    () => {
+      droppers = [{ p: [W * 0.5, 40], pulse: 0 }];
+      const cx = W * 0.5, cy = H * 0.3;
+      for (let i = 0; i < 9; i++) {
+        const ang = Math.PI * (0.15 + (i / 8) * 0.7);
+        const r1 = Math.min(W, H) * 0.26, r2 = r1 + 26 + (i % 3) * 26;
+        const x = cx + Math.cos(ang) * r1 * 1.4, y = cy + Math.sin(ang) * r1;
+        const dx = Math.cos(ang) * (r2 - r1), dy = Math.sin(ang) * (r2 - r1);
+        addLine([x - dy, y + dx * 0.3], [x + dy, y - dx * 0.3]);
+      }
+      addLine([W * 0.36, H * 0.2], [W * 0.46, H * 0.24]);
+      addLine([W * 0.64, H * 0.2], [W * 0.54, H * 0.24]);
+    },
+  ];
+  let layout = 0;
+  function useLayout(i) {
+    layout = (i + LAYOUTS.length) % LAYOUTS.length;
+    lines = []; balls = [];
+    LAYOUTS[layout]();
+  }
+
+  // ── Physics ────────────────────────────────────────────────────────────────
+  function collide(ball, line, now) {
+    const [ax, ay] = line.a, [bx, by] = line.b;
+    const ex = bx - ax, ey = by - ay;
+    const L2 = ex * ex + ey * ey || 1;
+    let t = ((ball.p[0] - ax) * ex + (ball.p[1] - ay) * ey) / L2;
+    t = Math.max(0, Math.min(1, t));
+    const cx = ax + ex * t, cy = ay + ey * t;
+    let dx = ball.p[0] - cx, dy = ball.p[1] - cy;
+    let d = Math.hypot(dx, dy);
+    const reach = R + 4;
+    if (d >= reach) return;
+    if (d < 1e-6) { const l = Math.sqrt(L2); dx = -ey / l; dy = ex / l; d = 1; }
+    const nx = dx / d, ny = dy / d;
+    const vn = ball.v[0] * nx + ball.v[1] * ny;
+    ball.p[0] = cx + nx * reach;
+    ball.p[1] = cy + ny * reach;
+    if (vn >= 0) return;
+    ball.v[0] -= (1 + BOUNCE) * vn * nx;
+    ball.v[1] -= (1 + BOUNCE) * vn * ny;
+    const speed = -vn;
+    if (speed > 60 && now - line.lastNote > 45) {
+      line.lastNote = now;
+      line.hitAt = now;
+      line.amp = Math.min(1, speed / 700);
+      strike(freqFor(midiFor(line.degree)), 0.25 + line.amp * 0.9, (cx / W) * 1.4 - 0.7);
+    }
+  }
+
+  let beatClock = 0;
+  function step(dt, now) {
+    beatClock += dt;
+    const beat = 60 / bpm;
+    while (beatClock >= beat) {
+      beatClock -= beat;
+      for (const d of droppers) {
+        balls.push({ p: [d.p[0] + (Math.random() - 0.5) * 0.6, d.p[1] + 14], v: [0, 0], born: now, trail: [] });
+        d.pulse = 1;
+      }
+    }
+    const SUB = 6, h = dt / SUB;
+    for (let s = 0; s < SUB; s++) {
+      for (const b of balls) {
+        b.v[1] += G * h;
+        const sp = Math.hypot(b.v[0], b.v[1]);
+        if (sp > MAX_SPEED) { b.v[0] *= MAX_SPEED / sp; b.v[1] *= MAX_SPEED / sp; }
+        b.p[0] += b.v[0] * h;
+        b.p[1] += b.v[1] * h;
+        for (const l of lines) collide(b, l, now);
+      }
+    }
+    balls = balls.filter((b) => b.p[1] < H + 40 && b.p[0] > -40 && b.p[0] < W + 40 && now - b.born < 25000);
+    if (balls.length > 160) balls.splice(0, balls.length - 160);
+  }
+
+  // ── Drawing ────────────────────────────────────────────────────────────────
+  function drawLine(l, now, preview) {
+    const [ax, ay] = l.a, [bx, by] = l.b;
+    const age = (now - l.hitAt) / 1000;
+    // A struck bar wobbles: its middle swings along the normal and settles.
+    const wob = age < 1.2 ? l.amp * 9 * Math.exp(-age * 5) * Math.sin(age * (30 + l.degree * 4)) : 0;
+    const len = Math.hypot(bx - ax, by - ay) || 1;
+    const nx = -(by - ay) / len, ny = (bx - ax) / len;
+    const mx = (ax + bx) / 2 + nx * wob, my = (ay + by) / 2 + ny * wob;
+    const color = colorFor(l.degree);
+    ctx.lineCap = "round";
+    if (age < 0.5) {
+      ctx.strokeStyle = color;
+      ctx.globalAlpha = (1 - age / 0.5) * 0.35 * (0.4 + l.amp);
+      ctx.lineWidth = 24;
+      ctx.beginPath(); ctx.moveTo(ax, ay); ctx.quadraticCurveTo(mx, my, bx, by); ctx.stroke();
+      ctx.globalAlpha = 1;
+    }
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 8;
+    if (preview) ctx.setLineDash([2, 10]);
+    ctx.beginPath(); ctx.moveTo(ax, ay); ctx.quadraticCurveTo(mx, my, bx, by); ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  function drawDropper(d) {
+    const [x, y] = d.p;
+    const s = 1 + d.pulse * 0.25;
+    d.pulse *= 0.86;
+    ctx.fillStyle = "#f2662a";
+    ctx.beginPath(); ctx.arc(x, y, 15 * s, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = "#fbe6cc"; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(x, y, 15 * s + 6, 0, Math.PI * 2); ctx.stroke();
+    ctx.fillStyle = "#241006";
+    ctx.beginPath(); ctx.arc(x, y, 5, 0, Math.PI * 2); ctx.fill();
+  }
+
+  let last = performance.now();
+  function frame(now) {
+    const dt = Math.min(0.033, (now - last) / 1000);
+    last = now;
+    if (!paused) step(dt, now);
+
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.fillStyle = "#241006";
+    ctx.fillRect(0, 0, W, H);
+    for (const l of lines) drawLine(l, now, false);
+    if (pending) {
+      drawLine(pending, now, true);
+      const midi = midiFor(pending.degree);
+      ctx.font = '800 15px "Anybody", system-ui';
+      ctx.fillStyle = "#fbe6cc";
+      ctx.fillText(nameFor(midi), pending.b[0] + 12, pending.b[1] - 10);
+    }
+    // Balls, each with a short tail where it's been.
+    ctx.lineCap = "round";
+    for (const b of balls) {
+      if (!paused) { b.trail.push([b.p[0], b.p[1]]); if (b.trail.length > 7) b.trail.shift(); }
+      for (let i = 1; i < b.trail.length; i++) {
+        ctx.strokeStyle = `rgba(251,230,204,${(i / b.trail.length) * 0.28})`;
+        ctx.lineWidth = R * 2 * (i / b.trail.length);
+        ctx.beginPath(); ctx.moveTo(b.trail[i - 1][0], b.trail[i - 1][1]); ctx.lineTo(b.trail[i][0], b.trail[i][1]); ctx.stroke();
+      }
+      ctx.fillStyle = "#fbe6cc";
+      ctx.beginPath(); ctx.arc(b.p[0], b.p[1], R, 0, Math.PI * 2); ctx.fill();
+    }
+    for (const d of droppers) drawDropper(d);
+    requestAnimationFrame(frame);
+  }
+
+  // ── Input ──────────────────────────────────────────────────────────────────
+  let tool = "draw", pending = null, dragging = null, erasing = false;
+  const pos = (e) => [e.clientX, e.clientY];
+  const near = (p, q, r) => Math.hypot(p[0] - q[0], p[1] - q[1]) < r;
+
+  function distToLine(p, l) {
+    const [ax, ay] = l.a, [bx, by] = l.b, ex = bx - ax, ey = by - ay;
+    const t = Math.max(0, Math.min(1, ((p[0] - ax) * ex + (p[1] - ay) * ey) / (ex * ex + ey * ey || 1)));
+    return Math.hypot(p[0] - (ax + ex * t), p[1] - (ay + ey * t));
+  }
+  function eraseAt(p) {
+    const before = lines.length;
+    lines = lines.filter((l) => distToLine(p, l) > 14);
+    if (droppers.length > 1) droppers = droppers.filter((d) => !near(p, d.p, 22));
+    return before !== lines.length;
+  }
+
+  canvas.addEventListener("pointerdown", (e) => {
+    unlock();
+    canvas.setPointerCapture(e.pointerId);
+    const p = pos(e);
+    $("hint").classList.add("gone");
+    const d = droppers.find((d) => near(p, d.p, 24));
+    if (d && tool === "draw") { dragging = d; canvas.classList.add("grab"); return; }
+    if (tool === "erase") { erasing = true; eraseAt(p); return; }
+    pending = { a: p, b: p, degree: degreeFor(0), hitAt: -1e9, amp: 0 };
+  });
+  canvas.addEventListener("pointermove", (e) => {
+    const p = pos(e);
+    if (dragging) { dragging.p = [p[0], Math.max(24, p[1])]; return; }
+    if (erasing) { eraseAt(p); return; }
+    if (pending) {
+      pending.b = p;
+      pending.degree = degreeFor(Math.hypot(p[0] - pending.a[0], p[1] - pending.a[1]));
+    } else {
+      canvas.classList.toggle("grab", tool === "draw" && droppers.some((d) => near(p, d.p, 24)));
+    }
+  });
+  function up() {
+    if (pending) {
+      const len = Math.hypot(pending.b[0] - pending.a[0], pending.b[1] - pending.a[1]);
+      if (len > 18) {
+        addLine(pending.a, pending.b);
+        const l = lines[lines.length - 1];
+        l.hitAt = performance.now(); l.amp = 0.5;
+        strike(freqFor(midiFor(l.degree)), 0.5, (l.b[0] / W) * 1.4 - 0.7);
+      }
+    }
+    pending = null; dragging = null; erasing = false;
+    canvas.classList.remove("grab");
+  }
+  canvas.addEventListener("pointerup", up);
+  canvas.addEventListener("pointercancel", up);
+
+  function unlock() {
+    if (!soundOn) setSound(true);
+  }
+  function setSound(on) {
+    soundOn = on;
+    if (on) startAudio(); else if (ac) ac.suspend();
+    $("sound").setAttribute("aria-pressed", String(on));
+    $("sound").textContent = on ? "Sound on" : "Turn sound on";
+  }
+
+  // ── Controls ───────────────────────────────────────────────────────────────
+  function segment(id, onPick) {
+    const g = $(id);
+    g.querySelectorAll("button").forEach((b) => b.addEventListener("click", () => {
+      g.querySelectorAll("button").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
+      onPick(b.dataset.v);
+    }));
+  }
+  segment("tool", (v) => { tool = v; canvas.dataset.tool = v; });
+  segment("scale", (v) => { scale = v; unlock(); });
+  $("tempo").addEventListener("input", (e) => { bpm = Number(e.target.value); $("tempoOut").textContent = bpm; });
+  $("preset").addEventListener("click", () => useLayout(layout + 1));
+  $("dropper").addEventListener("click", () => droppers.push({ p: [W * (0.2 + Math.random() * 0.6), 40], pulse: 1 }));
+  $("clear").addEventListener("click", () => { lines = []; balls = []; });
+  $("pause").addEventListener("click", () => { paused = !paused; $("pause").textContent = paused ? "Play" : "Pause"; });
+  $("sound").addEventListener("click", () => setSound(!soundOn));
+  $("collapse").addEventListener("click", () => {
+    const closed = $("dock").classList.toggle("closed");
+    $("collapse").textContent = closed ? "Show" : "Hide";
+    $("collapse").setAttribute("aria-expanded", String(!closed));
+  });
+  addEventListener("keydown", (e) => {
+    if (e.key === " ") { e.preventDefault(); $("pause").click(); }
+    if (e.key === "e") $("tool").querySelector('[data-v="erase"]').click();
+    if (e.key === "d") $("tool").querySelector('[data-v="draw"]').click();
+  });
+  document.addEventListener("visibilitychange", () => { if (document.hidden && ac) ac.suspend(); else if (soundOn && ac) ac.resume(); });
+
+  function resize() {
+    const oldW = W, oldH = H;
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    W = innerWidth; H = innerHeight;
+    canvas.width = Math.round(W * dpr);
+    canvas.height = Math.round(H * dpr);
+    if (oldW && oldH) {
+      // Keep the drawing where it was, relative to the screen.
+      const sx = W / oldW, sy = H / oldH;
+      const fit = (p) => [p[0] * sx, p[1] * sy];
+      lines = lines.map((l) => ({ ...l, a: fit(l.a), b: fit(l.b) }));
+      droppers.forEach((d) => (d.p = fit(d.p)));
+    }
+  }
+  addEventListener("resize", resize);
+  resize();
+  useLayout(0);
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
