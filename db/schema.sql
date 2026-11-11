@@ -50,3 +50,25 @@ create table if not exists lab_craft_daily (
   name text not null references lab_craft_elements (name),
   par int not null
 );
+
+-- ─── Labs: analytics (labs.rushilchopra.com/stats) ─────────────────────────
+
+-- One row per thing that happened in a lab: a view, time spent, a button
+-- pressed. No raw IPs and no cookies: `visitor` is a hash that changes every
+-- UTC day, `session` is a random id that lives in one browser tab.
+create table if not exists lab_events (
+  id bigint generated always as identity primary key,
+  created_at timestamptz not null default now(),
+  lab text not null,
+  event text not null,
+  props jsonb not null default '{}'::jsonb,
+  visitor text not null,
+  session text,
+  country text,
+  device text,
+  referrer text,
+  path text
+);
+create index if not exists lab_events_time on lab_events (created_at);
+create index if not exists lab_events_lab_time on lab_events (lab, created_at);
+create index if not exists lab_events_lab_event_time on lab_events (lab, event, created_at);

@@ -75,6 +75,6 @@ export function addRails(plan, opt = {}) {
     plan.rails.push({ marble: m.id, role: "exit", radius: m.radius, pts: xp });
   }
   plan.start = plan.firstNote - (opt.leadIn ?? 1.7);
-  plan.end = plan.lastHit + (opt.tail ?? 2.8);
+  plan.end = plan.lastHit + (opt.tail ?? 2.3);
   return plan;
 }

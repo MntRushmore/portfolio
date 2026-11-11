@@ -1,4 +1,6 @@
 import type { Metadata, Viewport } from "next";
+import { Analytics } from "@vercel/analytics/next";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 import { Anybody, Hanken_Grotesk } from "next/font/google";
 import { site } from "@/content/site";
 import { siteUrl } from "@/lib/site";
@@ -52,7 +54,12 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="en" className={`${anybody.variable} ${hanken.variable}`}>
-      <body>{children}</body>
+      <body>
+        {children}
+        {/* Vercel Web Analytics and Speed Insights: page views and load times, no cookies. */}
+        <Analytics />
+        <SpeedInsights />
+      </body>
     </html>
   );
 }

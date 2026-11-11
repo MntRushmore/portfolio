@@ -60,8 +60,8 @@ const preview = !!opt.preview;
 const fpsFull = Number(opt.fps || 60), fps = preview ? fpsFull / 2 : fpsFull;
 const [fullW, fullH] = aspect === "9:16" ? [1080, 1920] : [1920, 1080];
 const [W, H] = preview ? [fullW / 2, fullH / 2] : [fullW, fullH];
-const samples = Number(opt.samples || (preview ? 6 : 20));
-const jobs = Math.max(1, Number(opt.jobs || 2));
+const samples = Number(opt.samples || (preview ? 6 : 16));
+const jobs = Math.max(1, Number(opt.jobs || (preview ? 2 : 1)));
 const engine = opt.engine === "cycles" ? "cycles" : "eevee";
 const labUrl = opt.lab || "http://labs.localhost:3123/lab-files/marble-run/index.html";
 const tune = resolveTune(opt.tune ?? "canon");
@@ -95,7 +95,7 @@ async function main() {
   if (opt.score) { score = JSON.parse(fs.readFileSync(opt.score, "utf8")); log(`score: ${opt.score}`); }
   else {
     try {
-      score = await fetchScore({ url: labUrl, tune: tune.name, song: tune.extra && { name: tune.extra.name, bpm: tune.extra.bpm, sharps: tune.extra.sharps, notes: tune.extra.notes, bass: tune.extra.bass }, aspect, speed });
+      score = await fetchScore({ url: labUrl, tune: tune.name, song: tune.extra, aspect, speed });
       fs.writeFileSync(scoreFile, JSON.stringify(score));
       log(`score: "${score.tune.name}" from the lab, ${score.hits.length} hits, ${score.duration.toFixed(1)} s, layout flaws ${score.layoutFlaws}`);
     } catch (e) {
@@ -107,7 +107,7 @@ async function main() {
 
   // 2. plan
   const plan = buildPlan(score);
-  const base = `${slug(plan.tune.name)}-${aspect.replace(":", "x")}-${fpsFull}fps${preview ? "-preview" : ""}${engine === "cycles" ? "-cycles" : ""}`;
+  const base = `${slug(plan.tune.name)}-${aspect.replace(":", "x")}${speed !== 1 ? `-x${speed}` : ""}-${fpsFull}fps${preview ? "-preview" : ""}${engine === "cycles" ? "-cycles" : ""}`;
   const work = path.join(OUT, ".work", base), frames = path.join(work, "frames");
   fs.rmSync(work, { recursive: true, force: true }); fs.mkdirSync(frames, { recursive: true });
   const planFile = path.join(work, "plan.json");

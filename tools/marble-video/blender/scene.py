@@ -128,7 +128,7 @@ def wall_mat():
     br.inputs["Row Height"].default_value = 3.2
     nt.links.new(tc.outputs["Object"], br.inputs["Vector"])
     # faint cloudy variation over the glaze
-    nz = nt.nodes.new("ShaderNodeTexNoise"); nz.inputs["Scale"].default_value = 0.9; nz.inputs["Detail"].default_value = 5
+    nz = nt.nodes.new("ShaderNodeTexNoise"); nz.inputs["Scale"].default_value = 0.9; nz.inputs["Detail"].default_value = 2
     nt.links.new(tc.outputs["Object"], nz.inputs["Vector"])
     mix = nt.nodes.new("ShaderNodeMixRGB"); mix.blend_type = "MULTIPLY"; mix.inputs["Fac"].default_value = 0.35
     cr = nt.nodes.new("ShaderNodeValToRGB")
@@ -138,7 +138,7 @@ def wall_mat():
     nt.links.new(br.outputs["Color"], mix.inputs["Color1"]); nt.links.new(cr.outputs["Color"], mix.inputs["Color2"])
     nt.links.new(mix.outputs["Color"], b.inputs["Base Color"])
     # roughness: satin tile, matt grout, small patches
-    nz2 = nt.nodes.new("ShaderNodeTexNoise"); nz2.inputs["Scale"].default_value = 2.5; nz2.inputs["Detail"].default_value = 8
+    nz2 = nt.nodes.new("ShaderNodeTexNoise"); nz2.inputs["Scale"].default_value = 2.5; nz2.inputs["Detail"].default_value = 2
     nt.links.new(tc.outputs["Object"], nz2.inputs["Vector"])
     mr = nt.nodes.new("ShaderNodeMapRange"); mr.inputs["To Min"].default_value = 0.42; mr.inputs["To Max"].default_value = 0.62
     nt.links.new(nz2.outputs["Fac"], mr.inputs["Value"])
@@ -148,24 +148,25 @@ def wall_mat():
     # grout sits a hair below the tile; the glaze is slightly uneven
     inv = nt.nodes.new("ShaderNodeMath"); inv.operation = "SUBTRACT"; inv.inputs[0].default_value = 1.0
     nt.links.new(br.outputs["Fac"], inv.inputs[1])
-    addn = nt.nodes.new("ShaderNodeMath"); addn.operation = "MULTIPLY_ADD"; addn.inputs[1].default_value = 0.05
-    nt.links.new(nz2.outputs["Fac"], addn.inputs[0]); nt.links.new(inv.outputs[0], addn.inputs[2])
+    # bump from the grout only: a bump node evaluates its height three times, and the wall fills the frame
     bp = nt.nodes.new("ShaderNodeBump"); bp.inputs["Strength"].default_value = 0.35; bp.inputs["Distance"].default_value = 0.02
-    nt.links.new(addn.outputs[0], bp.inputs["Height"]); nt.links.new(bp.outputs["Normal"], b.inputs["Normal"])
+    nt.links.new(inv.outputs[0], bp.inputs["Height"]); nt.links.new(bp.outputs["Normal"], b.inputs["Normal"])
     b.inputs["Specular IOR Level"].default_value = 0.4
     return m
 
 def glass_mat(name, tint):
+    """A clear tinted glass shell you can see the swirl through.
+    EEVEE's ray-traced refraction shrinks and darkens whatever is inside a glass ball, so the swirl
+    all but vanished; a glossy, mostly transparent blended shell keeps it bright and readable."""
     m, nt, b = new_mat(name)
     b.inputs["Base Color"].default_value = tint
     b.inputs["Roughness"].default_value = 0.0
     b.inputs["IOR"].default_value = 1.48
-    b.inputs["Transmission Weight"].default_value = 1.0
-    b.inputs["Coat Weight"].default_value = 0.6
+    b.inputs["Alpha"].default_value = 0.38
+    b.inputs["Coat Weight"].default_value = 0.8
     b.inputs["Coat Roughness"].default_value = 0.02
-    m.use_raytrace_refraction = True
-    m.thickness_mode = "SPHERE"
-    m.use_transparent_shadow = True
+    m.surface_render_method = "BLENDED"
+    m.use_transparent_shadow = False          # a solid, readable shadow on the wall
     return m
 
 STEEL = lambda: simple_mat("steel-pin", lin([0.80, 0.80, 0.82]), rough=0.22, metal=1.0)
@@ -506,8 +507,8 @@ mean_y = ys_all.mean(axis=0)
 win = int(0.9 * FPS)
 sep = x_hi - x_lo
 sep_env = np.array([sep[max(0, i - win):i + win + 1].max() for i in range(len(sep))])
-want_w = smooth(np.clip(sep_env + 200.0, 400.0, FW + 40.0), 0.7)
-dist_a = np.maximum(want_w / 2 / tan_x, 235.0 / tan_y)
+want_w = smooth(np.clip(sep_env + 150.0, 330.0, FW + 40.0), 0.7)
+dist_a = np.maximum(want_w / 2 / tan_x, 200.0 / tan_y)
 tx_ = smooth((x_lo + x_hi) / 2, 0.55)
 half_w = dist_a * tan_x
 tx_ = np.clip(tx_, np.minimum(half_w - 70.0, FW / 2), np.maximum(FW + 70.0 - half_w, FW / 2))   # do not stare at bare wall beside the run
@@ -569,23 +570,24 @@ else:
     r.engine = "BLENDER_EEVEE"
     ee = scene.eevee
     ee.taa_render_samples = A.samples
+    # Settings chosen by timing each feature at 1080x1920 (see README, "Render time"): full-size
+    # shadow maps, full-resolution ray tracing, jittered bokeh, fast GI and overscan together cost
+    # about 2 s a frame and change nothing visible in this scene, so they are off or halved.
     ee.use_shadows = True
-    ee.shadow_ray_count = 1 if A.fast else 2
-    ee.shadow_step_count = 4 if A.fast else 8
-    ee.shadow_resolution_scale = 1.0
+    ee.shadow_ray_count = 1
+    ee.shadow_step_count = 6
+    ee.shadow_resolution_scale = 0.5
+    sun_d.shadow_maximum_resolution = 0.01
     ee.use_raytracing = True
     ee.ray_tracing_method = "SCREEN"
     rt = ee.ray_tracing_options
-    rt.resolution_scale = "2" if A.fast else "1"
+    rt.resolution_scale = "2"
     rt.trace_max_roughness = 0.5
     rt.screen_trace_quality = 0.25 if A.fast else 0.6
-    ee.use_fast_gi = True
-    ee.fast_gi_method = "GLOBAL_ILLUMINATION"
-    ee.fast_gi_distance = 0.0
-    ee.fast_gi_resolution = "2"
+    ee.use_fast_gi = False
     ee.motion_blur_steps = 1
-    ee.use_bokeh_jittered = not A.fast
-    ee.use_overscan = True; ee.overscan_size = 6.0
+    ee.use_bokeh_jittered = False
+    ee.use_overscan = False
 
 if os.environ.get("MV_TWEAK"): exec(os.environ["MV_TWEAK"])      # for experiments only
 os.makedirs(A.out, exist_ok=True)

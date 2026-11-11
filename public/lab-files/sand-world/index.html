@@ -153,8 +153,11 @@
   </main>
 </div>
 
+<script src="../track.js" defer></script>
 <script>
 (() => {
+  // Analytics (../track.js). Never lets a lab down: no tracker, no call.
+  const track = (...a) => { try { if (window.labTrack) window.labTrack(...a); } catch {} };
   "use strict";
   const $ = (id) => document.getElementById(id);
   const Q = new URLSearchParams(location.search);
@@ -604,6 +607,7 @@
   }
 
   function explode(cx, cy, r, power) {
+    if (r >= 9 && !quiet && touched) track("tnt", {}, { every: 10000 });
     const R = Math.ceil(r * 1.5), vs = (0.24 * r + 0.7) * power;
     for (let dy = -R; dy <= R; dy++) {
       const y = cy + dy; if (y < 1 || y > GH - 2) continue;
@@ -881,7 +885,7 @@
   }
 
   // ── Painting ──────────────────────────────────────────────────────────────
-  let tool = SAND, brushR = 3, touched = false;
+  let tool = SAND, brushR = 3, touched = false, live = false;
   const FILL = {}; TOOLS.forEach((t) => (FILL[t.id] = t.fill || 0));
   function paintAt(cx, cy, r, tl) {
     const fill = FILL[tl], r2 = r * r + r * 0.8;
@@ -922,6 +926,7 @@
     e.preventDefault(); firstTouch(); Snd.wake();
     try { stage.setPointerCapture(e.pointerId); } catch {}
     const [x, y] = gpos(e), tl = e.button === 2 ? ERASE : tool;
+    track("draw", { element: (chips.get(tl) || { t: { name: "Erase" } }).t.name }, { every: 5000 });
     downs.set(e.pointerId, { x, y, tl, t0: tick, n: 0 });
     ptr = { x, y, show: true };
     if (tl === BOLT) strike(x); else paintAt(x, y, brushR, tl);
@@ -1202,20 +1207,21 @@
     chips.forEach((c, k) => c.b.setAttribute("aria-pressed", String(k === id)));
     const c = chips.get(id);
     $("curNm").textContent = c.t.name; $("curSw").style.backgroundImage = `url(${c.cv.toDataURL()})`;
+    if (live) track("element", { name: c.t.name }, { every: 4000 });
   }
   let sizeV = 4;
   function setSize(v) { sizeV = clamp(v | 0, 1, 14); brushR = sizeV - 1; $("size").value = sizeV; $("sizeOut").textContent = sizeV; }
   $("size").addEventListener("input", (e) => setSize(+e.target.value));
-  function setWind(w) { wind = clamp(w, -1, 1); $("wind").querySelectorAll("button").forEach((b) => b.setAttribute("aria-pressed", String(+b.dataset.w === wind))); }
+  function setWind(w) { wind = clamp(w, -1, 1); if (live) track("wind", { dir: wind < 0 ? "left" : wind > 0 ? "right" : "off" }, { every: 3000 }); $("wind").querySelectorAll("button").forEach((b) => b.setAttribute("aria-pressed", String(+b.dataset.w === wind))); }
   $("wind").addEventListener("click", (e) => { const b = e.target.closest("button"); if (b) setWind(+b.dataset.w); });
   let paused = false;
   function setPaused(p) { paused = p; $("pause").setAttribute("aria-pressed", String(p)); $("pause").textContent = p ? "Play" : "Pause"; $("pause2").setAttribute("aria-pressed", String(p)); $("pause2").textContent = p ? "▶" : "❚❚"; $("pause2").setAttribute("aria-label", p ? "Play" : "Pause"); }
-  function setSound(v) { Snd.set(v); soundUI(v); }
+  function setSound(v) { Snd.set(v); soundUI(v); track("sound", { on: !!v }, { every: 3000 }); }
   function soundUI(v) { $("sound").setAttribute("aria-pressed", String(v)); $("sound").textContent = v ? "Sound on" : "Sound off"; $("sound2").setAttribute("aria-pressed", String(v)); }
   let hintT = 0;
   function say(msg) { const h = $("hint"); h.textContent = msg; h.classList.remove("off"); clearTimeout(hintT); hintT = setTimeout(() => h.classList.add("off"), 1600); }
-  function nextScene() { touched = true; demo = null; loadScene(sceneI + 1); say(SCENES[sceneI].name); }
-  function doClear() { touched = true; demo = null; clearAll(); say("Cleared"); }
+  function nextScene() { touched = true; demo = null; loadScene(sceneI + 1); say(SCENES[sceneI].name); track("scene", { name: SCENES[sceneI].name }, { every: 1500 }); }
+  function doClear() { touched = true; demo = null; clearAll(); say("Cleared"); track("clear", {}, { every: 3000 }); }
   ["pause", "pause2"].forEach((id) => $(id).addEventListener("click", () => setPaused(!paused)));
   ["clear", "clear2"].forEach((id) => $(id).addEventListener("click", doClear));
   ["scene", "scene2"].forEach((id) => $(id).addEventListener("click", nextScene));
@@ -1289,6 +1295,7 @@
     if (Q.has("debug") && frames % 120 === 0) report();
   }
   setTool(SAND); setSize(innerWidth < 720 ? 3 : 4); setWind(0); soundUI(Snd.on);
+  live = true; // from here on, picks are the visitor's
   fit();
   requestAnimationFrame(frame);
   window.__sand = { step, report, get tick() { return tick; } };

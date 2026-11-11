@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { CSSProperties } from "react";
 import { LabCard } from "@/components/LabCard";
+import { LabTrack } from "@/components/LabTrack";
 import { SiteHeader } from "@/components/SiteHeader";
 import { Stripe, StripeLayer } from "@/components/Stripe";
 import { labsSite } from "@/content/labs";
@@ -13,6 +14,7 @@ export default function LabsIndex() {
 
   return (
     <>
+      <LabTrack lab="index" />
       <SiteHeader home={site.url} nav={[{ label: "Portfolio", href: site.url }]} />
       <main>
         {/* The stairwell's basement: the same stripe runs in from the left,

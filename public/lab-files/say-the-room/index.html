@@ -266,8 +266,10 @@
   </div>
 </div>
 
+<script src="../track.js" defer></script>
 <script>
 (() => {
+const track = (...a) => { try { if (window.labTrack) window.labTrack(...a); } catch {} }; // analytics, see ../track.js
 'use strict';
 const $ = (s, r = document) => r.querySelector(s);
 const NS = 'http://www.w3.org/2000/svg';
@@ -588,6 +590,8 @@ function applyAnswers(a) {
   if (a.lights) { S.lights = a.lights.score; S.lightLevel = level(S.lightLevel, S.lights); }
   if (a.mood) { S.mood = a.mood.score; S.moodLevel = level(S.moodLevel, S.mood); }
   S.groove = S.moodLevel <= 1 ? 0 : S.moodLevel >= 4 ? 2 : S.moodLevel >= 3 ? 1 : (S.disco ? 1 : 0);
+  for (const b of BOOLS) if (S[b] && !before[b]) track('item', { name: b }, { every: 8000 });
+  for (const c in CHOICES) if (S[c] !== before[c] && S[c] !== CHOICES[c]) track('choice', { what: c, value: String(S[c]) }, { every: 8000 });
   render(before);
 }
 
@@ -866,10 +870,11 @@ function latency(ms, jev) {
   const mx = Math.max(300, ...lats);
   $('#spark').innerHTML = lats.map((v) => `<i style="height:${Math.max(2, Math.round(v / mx * 14))}px"></i>`).join('');
   window.__lab.lat = ms; window.__lab.jev = jev;
+  track('latency', { bucket: ms < 150 ? 'under 150 ms' : ms < 300 ? '150-300 ms' : ms < 600 ? '300-600 ms' : ms < 1200 ? '600-1200 ms' : 'over 1200 ms', ms, jev: +jev || 0 }, { every: 10000, key: 'latency' });
 }
 
 /* ---------- typing ---------- */
-say.addEventListener('input', () => { stopScript(); audio(); base = say.value; skip = resultCount; setText(say.value, 'type'); });
+say.addEventListener('input', () => { track('typed', {}, { once: true }); stopScript(); audio(); base = say.value; skip = resultCount; setText(say.value, 'type'); });
 say.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); say.blur(); } });
 function show(t) { say.value = t; say.scrollTop = say.scrollHeight; }
 
@@ -893,7 +898,7 @@ function startRec() {
     const t = join(base, (parts.join(' ') + interim).trim()); show(t); setText(t, 'speech');
   };
   rec.onerror = (e) => {
-    if (e.error === 'not-allowed' || e.error === 'service-not-allowed') { listening = false; micUi(); status('The mic is blocked. Allow it in the address bar, or just type.'); say.focus(); }
+    if (e.error === 'not-allowed' || e.error === 'service-not-allowed') { track('mic_blocked', {}, { once: true }); listening = false; micUi(); status('The mic is blocked. Allow it in the address bar, or just type.'); say.focus(); }
     else if (e.error === 'audio-capture') { listening = false; micUi(); status('No microphone found. You can type instead.'); }
     else if (e.error === 'network') status('Speech needs a connection. You can type instead.', 5000);
     else if (e.error === 'language-not-supported') { listening = false; micUi(); status('Speech is not available here. You can type instead.'); }
@@ -910,7 +915,7 @@ mic.addEventListener('click', () => {
   audio(); stopScript();
   if (!SR) { status('This browser has no speech recognition. Type instead, it works the same.'); say.focus(); return; }
   if (listening) { listening = false; micUi(); try { rec.stop(); } catch {} status(''); return; }
-  listening = true; base = text; restarts = []; micUi();
+  listening = true; base = text; restarts = []; micUi(); track('mic_start', {}, { every: 5000 });
   try { startRec(); } catch { listening = false; micUi(); status('Could not start the mic. You can type instead.'); }
 });
 if (!SR) { $('#micLabel').textContent = 'Type'; say.placeholder = 'Type a room: teal walls, a big orange sofa, a cat…'; $('#hint small').textContent = 'Type a description below. It furnishes itself while you are still mid-sentence.'; }
@@ -935,9 +940,9 @@ function typeOut(str, btn, speed = 1) {
   };
   scriptTimer = setTimeout(step, 250);
 }
-SCRIPTS.forEach(([name, s]) => { const b = document.createElement('button'); b.type = 'button'; b.className = 'btn'; b.textContent = name; b.addEventListener('click', () => { audio(); if (scriptBtn === b) { stopScript(); return; } typeOut(s, b); }); $('#tries').appendChild(b); });
+SCRIPTS.forEach(([name, s]) => { const b = document.createElement('button'); b.type = 'button'; b.className = 'btn'; b.textContent = name; b.addEventListener('click', () => { audio(); if (scriptBtn === b) { stopScript(); return; } track('prompt_used', { prompt: name }, { every: 3000 }); typeOut(s, b); }); $('#tries').appendChild(b); });
 
-$('#reset').addEventListener('click', () => { stopScript(); base = ''; skip = resultCount; show(''); setText('', 'type'); status(''); if (!listening && matchMedia('(pointer:fine)').matches) say.focus(); });
+$('#reset').addEventListener('click', () => { track('start_over', {}, { every: 3000 }); stopScript(); base = ''; skip = resultCount; show(''); setText('', 'type'); status(''); if (!listening && matchMedia('(pointer:fine)').matches) say.focus(); });
 $('#snd').addEventListener('click', (e) => {
   A.on = !A.on; e.currentTarget.setAttribute('aria-pressed', A.on); e.currentTarget.textContent = A.on ? 'Sound on' : 'Sound off';
   if (A.on) { audio(); const on = S.music; music.on = false; music.set(on, S.groove); } else if (A.ctx) { clearInterval(music.timer); music.on = false; A.band.gain.setTargetAtTime(0, A.ctx.currentTime, .05); }

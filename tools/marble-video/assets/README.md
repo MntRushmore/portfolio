@@ -29,8 +29,8 @@ Also in the SoundFont and unused so far: Tubular Bells 14 / 15, Celesta 8 / 9, M
 The pitch played is the lab's `playedMidi`. Per note: MIDI velocity = 40 + 80 x loudness (loudness
 0.5..1 comes from impact speed), pan from the key's x position across the field (five fixed pan
 positions per instrument, each on its own MIDI channel, so a ringing note never jumps when the next
-one is panned elsewhere). FluidSynth settings: 48 kHz, gain 0.7, reverb on (room 0.52, damp 0.35,
-width 0.9, level 0.42), chorus off. The mapping lives in `../lib/themes.mjs`, the MIDI writer and
+one is panned elsewhere). FluidSynth settings: 48 kHz, gain 0.7, reverb on (room 0.85, damp 0.2,
+width 0.9, level 0.8), chorus off. A brown-noise room tone at about -49 dBFS RMS is mixed under the master. The mapping lives in `../lib/themes.mjs`, the MIDI writer and
 the mastering chain in `../lib/audio.mjs`.
 
 ## Percussion tubes: not used

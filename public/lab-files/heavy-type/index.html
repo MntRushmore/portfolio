@@ -114,8 +114,11 @@ letter.style.fontVariationSettings =
 
 <p class="toast" id="toast" hidden role="status"></p>
 
+<script src="../track.js" defer></script>
 <script>
 (() => {
+  // Analytics (../track.js). Never lets a lab down: no tracker, no call.
+  const track = (...a) => { try { if (window.labTrack) window.labTrack(...a); } catch {} };
   const $ = (id) => document.getElementById(id);
   const poster = $("poster");
   const qs = new URLSearchParams(location.search);
@@ -319,7 +322,7 @@ letter.style.fontVariationSettings =
     lastInput = performance.now();
   }
   poster.addEventListener("pointermove", (e) => { if (!frozen && !(tiltOn && e.pointerType !== "mouse" && !e.buttons)) aim(e); });
-  poster.addEventListener("pointerdown", (e) => { if (frozen) return; aim(e); ampT = 1.45; closePops(); });
+  poster.addEventListener("pointerdown", (e) => { if (frozen) return; track("press", { pointer: e.pointerType || "mouse" }, { once: true }); aim(e); ampT = 1.45; closePops(); });
   window.addEventListener("pointerup", () => { ampT = 1; });
   window.addEventListener("pointercancel", () => { ampT = 1; });
   // Arrow keys steer too.
@@ -361,11 +364,12 @@ letter.style.fontVariationSettings =
     try {
       if (typeof DeviceOrientationEvent.requestPermission === "function") {
         const res = await DeviceOrientationEvent.requestPermission();
-        if (res !== "granted") return tiltOff("Motion access was turned down, so your finger steers instead.");
+        if (res !== "granted") return track("tilt_denied", {}, { once: true }), tiltOff("Motion access was turned down, so your finger steers instead.");
       }
     } catch (err) { return tiltOff("This browser would not share its motion sensor. Your finger steers instead."); }
     gotTilt = false; beta0 = null; tiltOn = true;
     tiltBtn.setAttribute("aria-pressed", "true"); tiltBtn.textContent = "Tilting: on";
+    track("tilt_on", {}, { every: 5000 });
     window.addEventListener("deviceorientation", onTilt);
     toast("Tilt the phone. The weight rolls to the low side.");
     setTimeout(() => { if (tiltOn && !gotTilt) tiltOff("No tilt sensor answered on this device, so your finger steers instead."); }, 1800);
@@ -386,12 +390,12 @@ letter.style.fontVariationSettings =
   function closePops() { pops.forEach(([b, p]) => { $(p).hidden = true; $(b).setAttribute("aria-expanded", "false"); }); }
   pops.forEach(([b, p]) => $(b).addEventListener("click", () => {
     const open = $(p).hidden; closePops();
-    if (open) { $(p).hidden = false; $(b).setAttribute("aria-expanded", "true"); if (p === "wordsPop") $("words").focus(); }
+    if (open) { $(p).hidden = false; $(b).setAttribute("aria-expanded", "true"); track(p === "howPop" ? "how_opened" : "words_opened", {}, { every: 5000 }); if (p === "wordsPop") $("words").focus(); }
   }));
   window.addEventListener("keydown", (e) => { if (e.key === "Escape") closePops(); });
   const words = $("words");
   words.value = text.toUpperCase();
-  words.addEventListener("input", () => { text = words.value; build(); });
+  words.addEventListener("input", () => { text = words.value; build(); track("custom_text", {}, { once: true }); });
   if (qs.get("how")) $("howBtn").click();
 
   // ── Start ──────────────────────────────────────────────────────────────────

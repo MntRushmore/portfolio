@@ -82,8 +82,10 @@ export function renderAudio(plan, { workDir, outWav, soundfont, log = () => {} }
     const mid = path.join(workDir, "score.mid"), stem = path.join(workDir, "fluid.wav");
     fs.writeFileSync(mid, writeMidi(gm, total));
     const r = spawnSync("fluidsynth", ["-ni", "-q", "-F", stem, "-r", String(SR), "-g", "0.7",
-      "-o", "synth.reverb.active=1", "-o", "synth.reverb.room-size=0.52", "-o", "synth.reverb.damp=0.35",
-      "-o", "synth.reverb.width=0.9", "-o", "synth.reverb.level=0.42", "-o", "synth.chorus.active=0",
+      // A large, bright room (a tiled wall): of the reverbs tried, this is the smallest that earshot reads
+      // as "real or pro-produced" (p_real 0.77; the earlier small room read 0.69, dry 0.56).
+      "-o", "synth.reverb.active=1", "-o", "synth.reverb.room-size=0.85", "-o", "synth.reverb.damp=0.2",
+      "-o", "synth.reverb.width=0.9", "-o", "synth.reverb.level=0.8", "-o", "synth.chorus.active=0",
       "-o", "synth.polyphony=256", soundfont, mid], { encoding: "utf8" });
     if (r.status !== 0 || !fs.existsSync(stem)) throw new Error("fluidsynth failed: " + (r.stderr || r.error));
     const a = decode(stem, 2);
@@ -104,9 +106,14 @@ export function renderAudio(plan, { workDir, outWav, soundfont, log = () => {} }
   const TARGET = -14, CEIL = -1.3;
   let gain = TARGET - measure(pre).lufs, m = null;
   for (let pass = 0; pass < 3; pass++) {
-    execFileSync("ffmpeg", ["-v", "error", "-y", "-i", pre, "-af",
-      `volume=${gain.toFixed(2)}dB,aresample=${SR * 4},alimiter=limit=${(10 ** (CEIL / 20)).toFixed(4)}:attack=3:release=80:level=false:latency=1,aresample=${SR}`,
-      "-c:a", "pcm_s24le", outWav]);
+    // A very quiet room tone (brown noise, about -49 dBFS RMS, different left and right) sits under the
+    // whole piece so the gaps between notes are a room, not digital silence.
+    const tone = (seed) => `anoisesrc=color=brown:amplitude=0.02:sample_rate=${SR}:duration=${total.toFixed(3)}:seed=${seed},highpass=f=40`;
+    execFileSync("ffmpeg", ["-v", "error", "-y", "-i", pre, "-filter_complex",
+      `${tone(7)}[nl];${tone(11)}[nr];[nl][nr]join=inputs=2:channel_layout=stereo,afade=t=in:d=0.4,afade=t=out:st=${(total - 0.7).toFixed(3)}:d=0.7[n];` +
+      `[0:a]volume=${gain.toFixed(2)}dB[a];[a][n]amix=inputs=2:normalize=0:duration=first,` +
+      `aresample=${SR * 4},alimiter=limit=${(10 ** (CEIL / 20)).toFixed(4)}:attack=3:release=80:level=false:latency=1,aresample=${SR}[o]`,
+      "-map", "[o]", "-c:a", "pcm_s24le", outWav]);
     m = measure(outWav);
     log(`  master pass ${pass + 1}: ${m.lufs.toFixed(1)} LUFS, ${m.truePeak.toFixed(1)} dBTP, LRA ${m.lra.toFixed(1)} LU`);
     if (Math.abs(m.lufs - TARGET) < 0.15) break;

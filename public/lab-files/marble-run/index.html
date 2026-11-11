@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Marble run</title>
 <link rel="stylesheet" href="../kit.css">
+<script src="../track.js" defer></script>
 <script type="importmap">
 { "imports": {
   "three": "https://cdn.jsdelivr.net/npm/three@0.186.1/build/three.module.min.js",
@@ -44,8 +45,11 @@
   .tunes { display: flex; flex-wrap: wrap; gap: 7px; max-height: 232px; overflow-y: auto; align-content: flex-start; padding: 2px 2px 4px; }
   .tunes .label { flex: 0 0 100%; margin-top: 4px; }
   .tunes .btn { min-height: 34px; padding: 0 12px; font-size: 13.5px; }
+  .tunes .btn small { font-size: 11px; font-weight: 600; opacity: 0.65; font-variant-numeric: tabular-nums; }
   .find { width: 100%; min-height: 36px; padding: 0 12px; border: 2px solid var(--umber); border-radius: 999px; background: #fffaf2; font: inherit; font-size: 14px; color: var(--umber); }
   .find::placeholder { color: var(--ink-2); opacity: 0.7; }
+  .midipick { display: grid; gap: 4px; }
+  .midipick select { width: 100%; min-height: 36px; padding: 0 10px; border: 2px solid var(--umber); border-radius: 8px; background: #fffaf2; font: inherit; font-size: 13px; font-weight: 600; color: var(--umber); margin-bottom: 4px; }
   .note { margin: 0; font-size: 12px; color: var(--ink-2); line-height: 1.35; }
   body.drop::after { content: "Drop the MIDI file"; position: fixed; inset: 12px; z-index: 8; display: grid; place-items: center; border: 3px dashed var(--umber); border-radius: 12px; background: rgba(251, 230, 204, 0.9); font-family: var(--display); font-weight: 900; font-size: 26px; }
   .sheet .btn { min-height: 38px; }
@@ -131,6 +135,12 @@
     <button class="btn" id="video">Make a video</button>
   </div>
   <input type="file" id="midiFile" accept=".mid,.midi,audio/midi,audio/x-midi" hidden>
+  <div class="midipick" id="midiPick" hidden>
+    <label class="label" for="midiMel">Melody track</label>
+    <select id="midiMel"></select>
+    <label class="label" for="midiBass">Bass track</label>
+    <select id="midiBass"></select>
+  </div>
   <p class="note" id="midiNote">MIDI files are read on this device. Nothing is uploaded.</p>
 </section>
 
@@ -181,6 +191,9 @@
 <script>
 (() => {
   const $ = (id) => document.getElementById(id);
+  // Anonymous usage events for the labs' shared tracker, if it is there. Never a file name, never anything personal.
+  const track = (event, props) => { try { window.labTrack?.(event, props); } catch (e) {} };
+  const tuneId = () => (current.imported ? "midi" : current.name);
   const canvas = $("c");
   let ctx = canvas.getContext("2d");
   const motion = matchMedia("(prefers-reduced-motion: reduce)");
@@ -282,7 +295,7 @@
       [69,1],[72,2],[74,1],[76,1.5],[78,.5],[76,1],[74,2],[71,1],[67,1.5],[69,.5],[71,1],[72,1.5],[71,.5],[69,1],[68,1.5],[66,.5],[68,1],[69,3],[69,3]],
       bass: [[0,1],[45,3],[52,3],[43,3],[50,3],[45,3],[45,3],[52,3],[47,3],[45,3],[52,3],[43,3],[50,3],[45,3],[52,3],[45,3],[45,3]],
       parts: [[0, "wood", "Marimba"], [24, "vibe", "Marimba and vibraphone"]] },
-    { name: "Jingle Bells", group: "Songs", bpm: 200, notes: [
+    { name: "Jingle Bells", group: "Songs", bpm: 212, notes: [
       [E4,1],[E4,1],[E4,2],[E4,1],[E4,1],[E4,2],[E4,1],[G4,1],[C4,1.5],[D4,.5],[E4,4],
       [F4,1],[F4,1],[F4,1.5],[F4,.5],[F4,1],[E4,1],[E4,1],[E4,.5],[E4,.5],[E4,1],[D4,1],[D4,1],[E4,1],[D4,2],[G4,2],
       [E4,1],[E4,1],[E4,2],[E4,1],[E4,1],[E4,2],[E4,1],[G4,1],[C4,1.5],[D4,.5],[E4,4],
@@ -301,6 +314,50 @@
       bass: [[0,2],[48,4],[55,4],[48,4],[55,4],[48,4],[43,4],[48,4],[55,4],[48,4],[55,4],[48,4],[55,4],[48,4],[43,4],[48,8]],
       parts: [[0, "white", "Marimba and piano"]] },
   ];
+  // ── Longer versions: the same tunes with their other sections and repeats ───
+  {
+    const up = (list, k = 12) => list.map(([m, n]) => [m ? m + k : 0, n]);
+    const tune = (name) => SONGS.find((x) => x.name === name);
+
+    // Ode to Joy, whole: A A′ B A′, then all of it again an octave up.
+    const ode = tune("Ode to Joy"), A1 = ode.notes.slice(0, 15), A2 = ode.notes.slice(15);
+    const B = [[D4,1],[D4,1],[E4,1],[C4,1],[D4,1],[E4,.5],[F4,.5],[E4,1],[C4,1],[D4,1],[E4,.5],[F4,.5],[E4,1],[D4,1],[C4,1],[D4,1],[G3,2]];
+    const once = [...A1, ...A2, ...B, ...A2], obass = [...ode.bass, ...half(43, 55, 43, 48, 43, 47, 50, 43), ...ode.bass.slice(8)];
+    ode.notes = [...once, ...up(once)]; ode.bass = [...obass, ...obass];
+    ode.parts = [[0, "wood", "Marimba"], [32, "vibe", "Marimba and vibraphone"], [64, "white", "Marimba and piano"], [96, "bell", "Marimba and bells"]];
+
+    // Für Elise, the whole first section: the theme with both endings, then the C major episode and the way back, twice.
+    const elise = tune("Für Elise");
+    const lead = [[69,3],[71,1],[72,1],[74,1]];                                  // A, then B C D up into the episode
+    const theme = [[76,1],[75,1],[76,1],[71,1],[74,1],[72,1],[69,3],[60,1],[64,1],[69,1],[71,3],[64,1],[68,1],[71,1],[72,3],[64,1],[76,1],[75,1],
+      [76,1],[75,1],[76,1],[71,1],[74,1],[72,1],[69,3],[60,1],[64,1],[69,1],[71,3],[64,1],[72,1],[71,1]];
+    const episode = [[76,3],[67,1],[77,1],[76,1],[74,3],[65,1],[76,1],[74,1],[72,3],[64,1],[74,1],[72,1],
+      [71,2],[64,1],[76,1],[0,1],[76,1],[88,1],[0,2],[75,1],[76,1],[0,1],[75,1],[76,1],[75,1]];
+    const ebass = [[48,1],[55,1],[60,1],[0,3],[43,1],[55,1],[59,1],[0,3],[45,1],[52,1],[57,1],[0,3],[40,1],[52,1],[64,1],[0,3],[0,9]];
+    const tbass = [[0,6],[45,1],[52,1],[57,1],[0,3],[40,1],[52,1],[56,1],[0,3],[45,1],[52,1],[57,1],[0,9],[45,1],[52,1],[57,1],[0,3],[40,1],[52,1],[56,1],[0,3]];
+    const on = [[45,1],[52,1],[57,1],[0,3]], stop2 = [[45,1],[52,1],[57,4]];
+    elise.notes = [...elise.notes.slice(0, -1), ...lead, ...episode, ...theme, ...lead, ...episode, ...theme, [69,6]];
+    elise.bass = [...elise.bass.slice(0, -3), ...on, ...ebass, ...tbass, ...on, ...ebass, ...tbass, ...stop2];
+    elise.parts = [[0, "white", "Marimba and piano"], [50, "vibe", "Marimba and vibraphone"], [131, "white", "Marimba and piano"]];
+
+    // Greensleeves: verse and refrain, twice.
+    const green = tune("Greensleeves"), verse = green.notes.slice(1), vbass = green.bass.slice(1);
+    const refrain = [[79,3],[79,1.5],[78,.5],[76,1],[74,2],[71,1],[67,1.5],[69,.5],[71,1],[72,2],[69,1],[69,1.5],[68,.5],[69,1],[71,2],[68,1],[64,3],
+      [79,3],[79,1.5],[78,.5],[76,1],[74,2],[71,1],[67,1.5],[69,.5],[71,1],[72,1.5],[71,.5],[69,1],[68,1.5],[66,.5],[68,1],[69,3]];
+    const rbass = [[48,3],[55,3],[43,3],[50,3],[45,3],[45,3],[52,3],[47,3],[48,3],[55,3],[43,3],[50,3],[45,3],[52,3],[45,3],[45,3]];
+    green.notes = [[69,1], ...verse, ...refrain, [69,2], [69,1], ...verse, ...refrain, [69,3]];
+    green.bass = [[0,1], ...vbass, ...rbass, ...vbass, ...rbass];
+    green.parts = [[0, "wood", "Marimba"], [49, "vibe", "Marimba and vibraphone"], [97, "white", "Marimba and piano"], [145, "bell", "Marimba and bells"]];
+
+    // Jingle Bells: "Dashing through the snow" and the chorus, twice.
+    const jingle = tune("Jingle Bells"), chorus = up(jingle.notes), cbass = jingle.bass;
+    const dash = [[67,1],[76,1],[74,1],[72,1],[67,3],[67,.5],[67,.5],[67,1],[76,1],[74,1],[72,1],[69,4],[69,1],[77,1],[76,1],[74,1],[71,4],[79,1],[79,1],[77,1],[74,1],[76,4],
+      [67,1],[76,1],[74,1],[72,1],[67,4],[67,1],[76,1],[74,1],[72,1],[69,3],[69,1],[69,1],[77,1],[76,1],[74,1],[79,1],[79,1],[79,1],[79,1],[81,1],[79,1],[77,1],[74,1],[72,2],[79,2]];
+    const dbass = half(48, 43, 48, 43, 48, 43, 53, 48, 53, 50, 43, 47, 43, 50, 48, 43, 48, 43, 48, 43, 48, 43, 53, 48, 53, 50, 43, 47, 43, 50, 48, 43);
+    jingle.notes = [...dash, ...chorus, ...dash, ...chorus]; jingle.bass = [...dbass, ...cbass, ...dbass, ...cbass];
+    jingle.parts = [[0, "bell", "Brass bells"], [64, "vibe", "Vibraphone"], [128, "white", "Marimba and piano"], [192, "bell", "Brass bells"]];
+  }
+
   const surprise = () => {
     const scale = [0, 2, 4, 7, 9];
     const pitch = (deg) => C4 + 12 * Math.floor(deg / 5) + scale[deg % 5];
@@ -705,13 +762,13 @@
    * the left, like a keyboard); a beam search then nudges bars sideways until
    * no marble flies through a bar, no two bars touch, and nothing leaves its lane.
    */
-  function layoutVoice(ev, o, KEEP, SPREAD) {
+  function layoutVoice(ev, o, wideAll) {
     const N = ev.length, NEAR = 14;
     const lo = o.x0 + o.R + 5, hi = o.x1 - o.R - 5;
-    const step = clamp((hi - lo) / (SPREAD * 1.5), 8, 30);
     const cupW = o.R + 9;
-    let beam = [{ xs: [], bars: [], arcs: [], rails: [], vin: [0, G * FALL], cost: 0, exit: 1 }];
-    for (let i = 0; i <= N; i++) {
+    // One step of the search: place key i for every layout still in the running, and keep the best few.
+    const advance = (beam, i, KEEP, SPREAD) => {
+      const step = clamp((hi - lo) / (SPREAD * 1.5), 8, 30);
       const last = i === N, e = ev[i], memo = new Map();
       let cands;
       if (last) cands = [1, -1, 0.6, -0.6, 1.5, -1.5, 0.3, -0.3];
@@ -780,15 +837,30 @@
         const old = next.get(key);
         if (!old || old.cost > cost) next.set(key, { s, x, bar, arc, vin, cost, cup, c, dbg, rail });
       }
-      beam = [...next.values()].sort((a, b) => a.cost - b.cost).slice(0, KEEP).map((q) => ({
+      return [...next.values()].sort((a, b) => a.cost - b.cost).slice(0, KEEP).map((q) => ({
         xs: last ? q.s.xs : q.s.xs.concat(q.x),
         bars: q.bar ? q.s.bars.concat(q.bar) : q.s.bars,
         arcs: q.arc ? q.s.arcs.concat(q.arc) : q.s.arcs,
         rails: q.arc ? q.s.rails.concat(q.rail) : q.s.rails,
         vin: q.vin, cost: q.cost, cup: q.cup, exit: q.c, dbg: q.dbg,
       }));
+    };
+    // Search narrowly; where that runs into trouble, go back a few keys and search that stretch much more widely.
+    const history = [[{ xs: [], bars: [], arcs: [], rails: [], vin: [0, G * FALL], cost: 0, exit: 1 }]];
+    let redone = -1;
+    for (let i = 0; i <= N; i++) {
+      let beam = wideAll ? advance(history[i], i, 22, 13) : advance(history[i], i, 8, 8);
+      if (!wideAll && beam[0].cost - history[i][0].cost >= 2400 && i > redone) {
+        const from = Math.max(0, i - 8);
+        let wide = history[from];
+        for (let k = from; k <= i; k++) wide = advance(wide, k, 26, 14);
+        if (wide[0].cost < beam[0].cost) { beam = wide; }
+        redone = i;
+      }
+      history[i + 1] = beam;
+      if (i > 10) history[i - 10] = null;            // nothing goes back further than this
     }
-    return beam[0];
+    return history[N + 1][0];
   }
 
   function build(song, speed) {
@@ -830,7 +902,7 @@
         const face = FACE[kind] || paint;
         const hue = RAINBOW[ranks.indexOf(n.midi) % RAINBOW.length];
         const e = { t: n.t, dur: n.dur, midi: n.midi, kind, round, frac, y: yAt(n.t), base: mid + (n.midi - (lo + hi) / 2) * pps,
-          len: round ? size : o.len * (1 - 0.3 * frac) * (o.low ? 1.3 : 1.12), thick: round ? size : (kind === "wood" ? 11 : kind === "white" ? 10 : 8) * Math.max(0.85, ks),
+          len: round ? size : o.low ? Math.min(o.len * 1.3, (o.x1 - o.x0) * 0.3) * (1 - 0.25 * frac) : o.len * (1 - 0.3 * frac) * 1.12, thick: round ? size : (kind === "wood" ? 11 : kind === "white" ? 10 : 8) * Math.max(0.85, ks),
           color: paint, face, hue, dark: shade(face, 0.6), lite: tint(face, 0.3), name: names[n.midi % 12] };
         if (!o.low) e.base = clamp(e.base + inner * 0.16 * Math.sin(n.t * 0.8 + 0.6), o.x0 + o.pad, o.x1 - o.pad);   // a slow sweep, so the run curves
         const prev = ev[ev.length - 1];
@@ -848,9 +920,10 @@
         }
         ev.push(e);
       });
-      let best = layoutVoice(ev, o, 8, 8);
-      if (best.cost >= 2400) { const wider = layoutVoice(ev, o, 22, 13); if (wider.cost < best.cost) best = wider; }
-      if (best.cost >= 2400 && rails) { const plain = voice(notes, o, false); if (plain.flaws * 2400 < best.cost) return plain; }
+      let best = layoutVoice(ev, o);
+      if ((best.dbg || []).length) { const wide = layoutVoice(ev, o, true); if ((wide.dbg || []).length < best.dbg.length) best = wide; }
+      const flawed = (best.dbg || []).length;
+      if (flawed && rails) { const plain = voice(notes, o, false); if (plain.flaws < flawed) return plain; }
       const hits = ev.map((e, i) => {
         const b = ev[i + 1];
         let vout;
@@ -867,7 +940,7 @@
         h.amp = clamp(vin / 1300, 0.55, 1.25);
         h.side = h.vout[0] >= 0 ? 1 : -1;
       });
-      const v = { ...o, hits, chute: { x: hits[0].x, y: hits[0].y - 0.5 * G * FALL * FALL }, tRel: hits[0].t - FALL, cup: best.cup, flaws: Math.floor(best.cost / 2400), dbg: best.dbg };
+      const v = { ...o, hits, chute: { x: hits[0].x, y: hits[0].y - 0.5 * G * FALL * FALL }, tRel: hits[0].t - FALL, cup: best.cup, flaws: flawed, dbg: best.dbg };
       const p = new Path2D();
       for (let t = v.tRel, first = true; t <= v.cup.t; t += 1 / 90, first = false) {
         const m = marbleAt(v, t); first ? p.moveTo(m[0], m[1]) : p.lineTo(m[0], m[1]);
@@ -964,6 +1037,11 @@
       loading = false;
     }
     silence();
+    track("play", { tune: tuneId(), source: current.imported ? "midi" : "builtin" });
+    if (current.imported && midiState && !midiState.reported) {
+      midiState.reported = true;
+      track("midi_imported", { tracks: midiState.song.tracks.length, autoPickCorrect: !midiState.changed });
+    }
     playBus = makeBus();
     startAt = ac.currentTime + LEAD;
     scheduled = 0; frozen = null;
@@ -978,6 +1056,7 @@
   }
   function finish() {
     mode = "done"; doneAt = performance.now() / 1000;
+    track("completed", { tune: tuneId(), seconds: Math.round(run.end) });
     setUI(); placeAgain();
   }
   function schedule() {
@@ -1433,10 +1512,10 @@
         tube: new THREE.CylinderGeometry(1, 1, 1, 30, 1, true).rotateX(Math.PI / 2),
         bore: new THREE.CylinderGeometry(0.86, 0.86, 1, 30, 1, true).rotateX(Math.PI / 2),
         lip: new THREE.RingGeometry(0.86, 1, 30),
-        rod: new THREE.CylinderGeometry(1, 1, 1, 10).rotateX(Math.PI / 2),
+        rod: new THREE.CylinderGeometry(1, 1, 1, 6).rotateX(Math.PI / 2),
         solid: new THREE.CylinderGeometry(1, 1, 1, 26).rotateX(Math.PI / 2),
         ball: new THREE.SphereGeometry(1, 40, 28),
-        bead: new THREE.SphereGeometry(1, 10, 7),
+        bead: new THREE.SphereGeometry(1, 7, 5),
         knot: new THREE.TorusKnotGeometry(0.42, 0.15, 72, 10, 2, 3),
       };
       const stripes = [];
@@ -1584,16 +1663,20 @@
       group.add(tube, fun, gate, cup, ball, blob);
       v.g = { ball, twist, gate, blob, gx: v.chute.x };
     }
-    const inst = shadowed(new THREE.InstancedMesh(geo.rod, steel, rods.length)), M = new THREE.Matrix4();
-    rods.forEach(([x, y, z0, z1, rad], i) => { M.makeScale(rad, rad, z1 - z0); M.setPosition(x, -y, (z0 + z1) / 2); inst.setMatrixAt(i, M); });
-    inst.instanceMatrix.needsUpdate = true; inst.frustumCulled = false;
-    group.add(inst);
-    if (balls.length) {
-      const bi = shadowed(new THREE.InstancedMesh(geo.bead, steel, balls.length));
-      balls.forEach(([x, y, rad], i) => { M.makeScale(rad, rad, rad); M.setPosition(x, -y, rad * 0.8); bi.setMatrixAt(i, M); });
-      bi.instanceMatrix.needsUpdate = true; bi.frustumCulled = false;
-      group.add(bi);
-    }
+    // Pins and beads are instanced in bands down the run, so only the bands in view are drawn.
+    const M = new THREE.Matrix4(), BAND = 700;
+    const banded = (items, geometry, place) => {
+      const bands = new Map();
+      for (const it of items) { const k = Math.floor(it[1] / BAND); if (!bands.has(k)) bands.set(k, []); bands.get(k).push(it); }
+      for (const list of bands.values()) {
+        const mesh = shadowed(new THREE.InstancedMesh(geometry, steel, list.length));
+        list.forEach((it, i) => { place(it); mesh.setMatrixAt(i, M); });
+        mesh.instanceMatrix.needsUpdate = true; mesh.computeBoundingSphere();
+        group.add(mesh);
+      }
+    };
+    banded(rods, geo.rod, ([x, y, z0, z1, rad]) => { M.makeScale(rad, rad, z1 - z0); M.setPosition(x, -y, (z0 + z1) / 2); });
+    banded(balls, geo.bead, ([x, y, rad]) => { M.makeScale(rad, rad, rad); M.setPosition(x, -y, rad * 0.8); });
     g3.stripes.forEach((m, i) => { const k = i >> 1; m.position.x = i & 1 ? view.FW + 52 + k * 30 + 11 : -52 - k * 30 - 11; });
     g3.lineY = r.yAt(0); g3.tx = view.FW / 2; g3.sx = 1e9;
   }
@@ -1936,6 +2019,7 @@
     if (pianoOn) closePiano();
     stop();
     useSong(i < SONGS.length ? SONGS[i] : surprise(), i);
+    track("tune_chosen", { tune: current.name });
     if (go) play();
   }
   for (const group of ["Classical", "Songs", "Yours"]) {
@@ -1945,13 +2029,18 @@
       if (s.group !== group) return;
       const b = document.createElement("button");
       b.className = "btn"; b.textContent = s.name; b.dataset.i = i; b.dataset.g = group;
+      if (s.notes) {
+        const secs = Math.round((s.notes.reduce((a, n) => a + n[1], 0) * 60) / s.bpm), t = document.createElement("small");
+        t.textContent = `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, "0")}`;
+        b.append(" ", t);
+      }
       b.addEventListener("click", () => pick(i));
       $("songs").appendChild(b);
     });
   }
   $("find").addEventListener("input", () => {
     const q = $("find").value.trim().toLowerCase(), seen = new Set();
-    $("songs").querySelectorAll("button").forEach((b) => { const on = !q || b.textContent.toLowerCase().includes(q); b.hidden = !on; if (on) seen.add(b.dataset.g); });
+    $("songs").querySelectorAll("button").forEach((b) => { const on = !q || b.firstChild.textContent.toLowerCase().includes(q); b.hidden = !on; if (on) seen.add(b.dataset.g); });
     $("songs").querySelectorAll(".label").forEach((h) => { h.hidden = !seen.has(h.dataset.g); });
   });
 
@@ -1963,11 +2052,12 @@
     const hl = d.getUint32(p); p += 4;
     const ntr = d.getUint16(p + 2), div = d.getUint16(p + 4); p += hl;
     if (div & 0x8000) throw new Error("This MIDI file uses a timing format the lab can't read.");
-    const tempos = [], tracks = [];
+    const tempos = [], parts = new Map();          // one part per track and channel
     for (let tr = 0; tr < ntr && p < d.byteLength - 8; tr++) {
       if (str(4) !== "MTrk") break;
       const end = p + 4 + d.getUint32(p); p += 4;
-      let tick = 0, status = 0; const open = new Map(), notes = [];
+      let tick = 0, status = 0, name = ""; const open = new Map();
+      const part = (ch) => { const k = tr * 16 + ch; if (!parts.has(k)) parts.set(k, { track: tr, ch, name: "", program: 0, notes: [] }); return parts.get(k); };
       while (p < end) {
         let dl = 0, b; do { b = d.getUint8(p++); dl = (dl << 7) | (b & 127); } while (b & 128);
         tick += dl;
@@ -1976,18 +2066,19 @@
         if (st === 0xff) {
           const type = d.getUint8(p++); let len = 0; do { b = d.getUint8(p++); len = (len << 7) | (b & 127); } while (b & 128);
           if (type === 0x51 && len === 3) tempos.push([tick, (d.getUint8(p) << 16) | (d.getUint8(p + 1) << 8) | d.getUint8(p + 2)]);
+          if (type === 0x03 && !name) { const q = p; name = str(len).trim(); p = q; }
           p += len;
         } else if (st === 0xf0 || st === 0xf7) { let len = 0; do { b = d.getUint8(p++); len = (len << 7) | (b & 127); } while (b & 128); p += len; }
         else {
           const hi = st & 0xf0, ch = st & 15, a = d.getUint8(p++), v = hi === 0xc0 || hi === 0xd0 ? 0 : d.getUint8(p++);
-          if (ch === 9) continue;                                   // drums have no pitch to play
+          if (hi === 0xc0) part(ch).program = a;
           const key = ch * 128 + a;
           if (hi === 0x90 && v > 0) open.set(key, tick);
-          else if ((hi === 0x80 || hi === 0x90) && open.has(key)) { notes.push({ midi: a, on: open.get(key), off: tick }); open.delete(key); }
+          else if ((hi === 0x80 || hi === 0x90) && open.has(key)) { part(ch).notes.push({ midi: a, on: open.get(key), off: tick }); open.delete(key); }
         }
       }
+      for (const q of parts.values()) if (q.track === tr) q.name = name;
       p = end;
-      if (notes.length) tracks.push(notes);
     }
     // Ticks to seconds, through every tempo change.
     tempos.sort((a, b) => a[0] - b[0]);
@@ -1995,22 +2086,77 @@
     const marks = []; let sec = 0;
     tempos.forEach(([tick, us], i) => { if (i) sec += ((tick - tempos[i - 1][0]) * tempos[i - 1][1]) / div / 1e6; marks.push([tick, sec, us]); });
     const at = (tick) => { let m = marks[0]; for (const k of marks) if (k[0] <= tick) m = k; else break; return m[1] + ((tick - m[0]) * m[2]) / div / 1e6; };
-    return tracks.map((ns) => ns.map((n) => ({ midi: n.midi, t: at(n.on), end: at(n.off) })).sort((a, b) => a.t - b.t));
+    const grid = div / 8;                          // snap lightly: to the nearest thirty-second note
+    const tracks = [...parts.values()].filter((q) => q.notes.length).map((q) => ({
+      name: q.name, ch: q.ch, program: q.program,
+      drums: q.ch === 9 || (q.ch === 15 && /drum|perc|kit/i.test(q.name)),
+      notes: q.notes.map((n) => { const on = Math.round(n.on / grid) * grid; return { midi: n.midi, t: at(on), end: at(Math.max(n.off, on + 1)), beat: on / div }; }).sort((a, b) => a.t - b.t || b.midi - a.midi),
+    }));
+    return { tracks, bpm: 60e6 / tempos[0][1], end: Math.max(0, ...tracks.map((t) => t.notes[t.notes.length - 1].end)) };
   }
-  /** Turn parsed tracks into a tune the run can play: one line of melody, one of bass, nothing too dense. */
-  function tuneFromTracks(tracks, name) {
-    const mean = (ns) => ns.reduce((a, n) => a + n.midi, 0) / ns.length;
-    const usable = tracks.filter((t) => t.length >= 6);
-    if (!usable.length) throw new Error("No tune found in that file.");
-    let mel, bas = null;
-    if (usable.length > 1) {
-      const sorted = [...usable].sort((a, b) => mean(b) - mean(a));
-      mel = sorted[0]; bas = sorted[sorted.length - 1];
-    } else {
-      // One track with everything in it: the top line is the tune, anything well below it is the bass.
-      const all = usable[0], top = [], low = [];
-      for (const n of all) { const peers = all.filter((m) => Math.abs(m.t - n.t) < 0.04); const hi = Math.max(...peers.map((m) => m.midi)); if (n.midi === hi) top.push(n); else if (n.midi === Math.min(...peers.map((m) => m.midi)) && n.midi < hi - 6) low.push(n); }
-      mel = top; if (low.length >= 6) bas = low;
+
+  const GM_FAMILY = ["piano", "tuned percussion", "organ", "guitar", "bass", "strings", "ensemble", "brass", "reed", "pipe", "synth lead", "synth pad", "synth effects", "world", "percussive", "sound effects"];
+  const NOTE = (m) => SHARPS[m % 12] + (Math.floor(m / 12) - 1);
+  /** What a track looks like, for choosing which one carries the tune. */
+  function trackStats(tr, songEnd) {
+    const ns = tr.notes, n = ns.length;
+    const groups = [];                                       // notes struck together
+    for (const x of ns) { const g = groups[groups.length - 1]; if (g && x.t - g.t < 0.03) g.size++; else groups.push({ t: x.t, size: 1 }); }
+    const gaps = groups.slice(1).map((g, i) => g.t - groups[i].t).filter((x) => x > 0).sort((a, b) => a - b);
+    const med = gaps.length ? gaps[gaps.length >> 1] : 1, mean = gaps.reduce((a, b) => a + b, 0) / (gaps.length || 1);
+    const cv = gaps.length ? Math.sqrt(gaps.reduce((a, b) => a + (b - mean) * (b - mean), 0) / gaps.length) / (mean || 1) : 1;
+    const pitches = ns.map((x) => x.midi), lo = Math.min(...pitches), hi = Math.max(...pitches);
+    // How much of the song it is present for, in two-second windows.
+    const wins = Math.max(1, Math.ceil(songEnd / 2)), seen = new Set(ns.map((x) => Math.floor(x.t / 2)));
+    return { n, lo, hi, avg: pitches.reduce((a, b) => a + b, 0) / n, poly: n / groups.length, med, cv,
+      rate: groups.length / Math.max(1, ns[n - 1].t - ns[0].t), cover: seen.size / wins, distinct: new Set(pitches).size };
+  }
+  function melodyScore(tr, st) {
+    if (tr.drums || st.n < 6) return -99;
+    let s = 0;
+    if (/vocal|voice|vox|melod|lead|sing|guide|solo|tune/i.test(tr.name)) s += 4;
+    if (/drum|perc|bass|pad|string|arp|saw|chord|comp|fx|cymbal|rhythm|accomp/i.test(tr.name)) s -= 2.5;
+    if (tr.program >= 32 && tr.program <= 39) s -= 2;                       // a bass patch
+    if (tr.program >= 88 && tr.program <= 103) s -= 1;                      // pads and effects
+    s += 2 * (1 - clamp((st.poly - 1) / 1.5));                              // one note at a time
+    s += st.avg >= 55 && st.avg <= 84 ? 1.5 : -Math.min(3, Math.min(Math.abs(st.avg - 55), Math.abs(st.avg - 84)) / 5);   // a range you could sing
+    if (st.rate > 5) s -= Math.min(3, (st.rate - 5) * 0.8);                 // too busy to be sung
+    if (st.rate < 0.4) s -= 1.5;
+    if (st.med < 0.22 && st.cv < 0.3) s -= 2.5;                             // fast and perfectly even: an arpeggio
+    if (st.distinct < 4) s -= 2;
+    s += 2.5 * st.cover;                                                    // there for the whole song
+    return s;
+  }
+  function bassScore(tr, st) {
+    if (tr.drums || st.n < 4) return -99;
+    let s = 0;
+    if (/bass/i.test(tr.name)) s += 4;
+    if (tr.program >= 32 && tr.program <= 39) s += 2.5;
+    s += st.avg < 50 ? 2 : st.avg < 57 ? 0.5 : -3;
+    s += 1.5 * (1 - clamp((st.poly - 1) / 1.5)) + 2 * st.cover;
+    if (st.rate > 5) s -= 2;
+    return s;
+  }
+  function autoPick(song) {
+    const st = song.tracks.map((t) => trackStats(t, song.end));
+    const ms = song.tracks.map((t, i) => melodyScore(t, st[i]));
+    const mel = ms.indexOf(Math.max(...ms));
+    if (ms[mel] < -50) throw new Error("No tune found in that file.");
+    const bs = song.tracks.map((t, i) => (i === mel ? -99 : bassScore(t, st[i])));
+    const b = bs.indexOf(Math.max(...bs));
+    return { mel, bass: bs[b] >= 3.5 ? b : song.tracks.some((t, i) => i !== mel && !t.drums) ? "roots" : "none", stats: st, scores: ms };
+  }
+  /** Turn the chosen tracks into a tune the run can play: one line of melody, one of bass, nothing too dense. */
+  function tuneFromMidi(song, name, melIdx, bassSel) {
+    const mel = song.tracks[melIdx].notes;
+    let bas = null;
+    if (typeof bassSel === "number") bas = song.tracks[bassSel].notes;
+    else if (bassSel === "roots") {
+      // No bass line as such: take the lowest note anyone plays in each half bar.
+      const pool = song.tracks.filter((t, i) => i !== melIdx && !t.drums).flatMap((t) => t.notes), by = new Map();
+      for (const n of pool) { const k = Math.floor(n.beat / 2); if (!by.has(k) || by.get(k).midi > n.midi) by.set(k, n); }
+      bas = [...by.entries()].sort((a, b) => a[0] - b[0]).map(([k, n]) => ({ midi: n.midi, t: n.t, end: n.end }));
+      if (bas.length < 4) bas = null;
     }
     const t0 = Math.min(mel[0].t, bas ? bas[0].t : 1e9), LIMIT = 75;
     const line = (ns, top, minGap, lo, hi) => {
@@ -2022,29 +2168,50 @@
         if (prev && t - prev.t < minGap) continue;                                                                          // too fast for a marble
         out.push({ t, midi: n.midi });
       }
+      if (!out.length) return out;
       const m = out.reduce((a, n) => a + n.midi, 0) / out.length, shift = 12 * Math.round(((lo + hi) / 2 - m) / 12);
       for (const n of out) { n.midi += shift; while (n.midi < lo) n.midi += 12; while (n.midi > hi) n.midi -= 12; }
       return out;
     };
-    const beat = 0.5, toList = (ns) => {
+    const bpm = clamp(song.bpm, 40, 240), beat = 60 / bpm, toList = (ns) => {
       const list = ns[0].t > 0.005 ? [[0, ns[0].t / beat]] : [];
-      ns.forEach((n, i) => list.push([n.midi, Math.max(0.05, ((ns[i + 1] ? ns[i + 1].t : n.t + 1.5) - n.t) / beat)]));
+      ns.forEach((n, i) => list.push([n.midi, Math.max(0.05, ((ns[i + 1] ? ns[i + 1].t : n.t + 3 * beat) - n.t) / beat)]));
       return list;
     };
     const m = line(mel, true, 0.1, 55, 88), b = bas ? line(bas, false, 0.22, 36, 59) : null;
-    if (m.length < 4) throw new Error("No tune found in that file.");
+    if (m.length < 4) throw new Error("That track has too few notes to make a run.");
     const total = m[m.length - 1].t / beat, kinds = [["wood", "Marimba"], ["vibe", "Vibraphone"], ["white", "Marimba and piano"], ["bell", "Bells"]];
     const parts = []; for (let k = 0; k * 32 < total || !k; k++) parts.push([k * 32, ...kinds[k % 4]]);
-    return { name, group: "Yours", bpm: 120, sharps: true, notes: toList(m), bass: b && b.length >= 4 ? toList(b) : null, parts, imported: { melody: m.length, bass: b ? b.length : 0 } };
+    return { name, group: "Yours", bpm, sharps: true, notes: toList(m), bass: b && b.length >= 4 ? toList(b) : null, parts, imported: { melody: m.length, bass: b ? b.length : 0 } };
+  }
+  let midiState = null;
+  function useMidi(play2) {
+    const { song, name } = midiState, mel = Number($("midiMel").value), bv = $("midiBass").value;
+    const tune = tuneFromMidi(song, name, mel, bv === "roots" || bv === "none" ? bv : Number(bv));
+    const going = mode === "play" || play2;
+    if (pianoOn) closePiano();
+    stop(); useSong(tune, -1);
+    $("midiNote").textContent = `${tune.imported.melody} melody notes${tune.imported.bass ? ` and ${tune.imported.bass} bass notes` : ", no bass"}. The file stays on this device; nothing is uploaded.`;
+    if (going) play();
   }
   async function openMidi(file) {
     try {
-      const song = tuneFromTracks(parseMidi(await file.arrayBuffer()), file.name.replace(/\.[^.]+$/, "").replace(/[_-]+/g, " ").slice(0, 28) || "Your MIDI");
-      if (pianoOn) closePiano();
-      stop(); useSong(song, -1);
-      $("midiNote").textContent = `Read ${song.imported.melody} melody notes${song.imported.bass ? ` and ${song.imported.bass} bass notes` : ""} from ${file.name}. Nothing was uploaded.`;
+      const song = parseMidi(await file.arrayBuffer()), pick = autoPick(song);
+      const name = file.name.replace(/\.[^.]+$/, "").replace(/[_-]+/g, " ").slice(0, 28) || "Your MIDI";
+      const label = (t, i) => `${t.name || "Track " + (i + 1)} · ${t.drums ? "drums" : GM_FAMILY[t.program >> 3]} · ${pick.stats[i].n} notes · ${NOTE(pick.stats[i].lo)}–${NOTE(pick.stats[i].hi)}`;
+      const opts = (sel, extra) => { sel.textContent = ""; for (const [v, text] of extra) sel.add(new Option(text, v)); song.tracks.forEach((t, i) => { if (!t.drums && pick.stats[i].n >= 4) sel.add(new Option(label(t, i), i)); }); };
+      opts($("midiMel"), []); opts($("midiBass"), [["none", "No bass marble"], ["roots", "Lowest notes of the other tracks"]]);
+      $("midiMel").value = pick.mel; $("midiBass").value = pick.bass;
+      midiState = { song, name, pick };
+      $("midiPick").hidden = false;
+      useMidi(false);
     } catch (e) { $("midiNote").textContent = e.message || "That file couldn't be read."; }
   }
+  for (const id of ["midiMel", "midiBass"]) $(id).addEventListener("change", () => {
+    midiState.changed = true;
+    track("track_changed", { which: id === "midiMel" ? "melody" : "bass" });
+    useMidi(true);
+  });
   $("midi").addEventListener("click", () => $("midiFile").click());
   $("midiFile").addEventListener("change", () => { const f = $("midiFile").files[0]; if (f) openMidi(f); $("midiFile").value = ""; });
   addEventListener("dragover", (e) => { if (e.dataTransfer && [...e.dataTransfer.types].includes("Files")) { e.preventDefault(); document.body.classList.add("drop"); } });
@@ -2058,12 +2225,16 @@
     if (mode === "play") resume = true;
     stop();
     clearTimeout(speedTimer);
-    speedTimer = setTimeout(() => { rebuild(); run.born = 0; camY = 0; if (resume && !dragging) { resume = false; play(); } }, 140);
+    speedTimer = setTimeout(() => { track("speed_changed", { speed }); rebuild(); run.born = 0; camY = 0; if (resume && !dragging) { resume = false; play(); } }, 140);
   });
   $("speed").addEventListener("pointerdown", () => { dragging = true; });
   addEventListener("pointerup", () => { dragging = false; if (resume) $("speed").dispatchEvent(new Event("input")); });
   $("play").addEventListener("click", play);
-  $("toggle").addEventListener("click", () => (mode === "play" ? stop() : play()));
+  $("toggle").addEventListener("click", () => {
+    if (mode !== "play") return play();
+    track("stopped_early", { tune: tuneId(), at_s: Math.round(clock()) });
+    stop();
+  });
   $("write").addEventListener("click", openPiano);
   $("cancel").addEventListener("click", closePiano);
   $("build").addEventListener("click", buildFromRecording);
@@ -2074,6 +2245,7 @@
   $("bass").addEventListener("click", () => {
     bassOn = !bassOn;
     $("bass").setAttribute("aria-pressed", String(bassOn));
+    track("bass_toggled", { on: bassOn });
     const go = mode === "play";
     stop(); rebuild(); camY = 0; setUI();
     if (go) play();
@@ -2439,8 +2611,10 @@
       $("exSave").textContent = `Download ${out.ext.toUpperCase()}`;
       $("exInfo").textContent = `${out.note} · ${(out.blob.size / 1048576).toFixed(1)} MB`;
       exShow("exDone"); $("exSave").focus();
+      track("video_exported", { tune: tuneId(), aspect: ex.shape === "v" ? "9:16" : "16:9", fps: ex.fps });
     } catch (err) {
       exShow("exSetup");
+      if (String(err && err.message) !== "cancelled") track("export_failed", { reason: String((err && err.message) || err).slice(0, 120) });
       if (String(err && err.message) !== "cancelled") { $("exErr").textContent = `That didn't work: ${err && err.message ? err.message : err}`; $("exErr").hidden = false; }
     }
   });
@@ -2457,6 +2631,7 @@
     song(i) { stop(); useSong(SONGS[i] || surprise(), i); },
     names: () => SONGS.map((x) => x.name),
     openMidi,
+    get midi() { return midiState && { mel: midiState.pick.mel, bass: midiState.pick.bass, tracks: midiState.song.tracks.map((t, i) => ({ name: t.name, ch: t.ch + 1, n: t.notes.length, score: +midiState.pick.scores[i].toFixed(2) })) }; },
     done() { finish(); },
     get run() { return run; },
     get perf() { return perfNow(); },
