@@ -198,7 +198,8 @@ export const site = {
     profilesElsewhere: ["https://yogagivesback.org/ambassadors/rushil-chopra/"],
     /** Extra facts about a project's organization, by project slug. */
     orgDetails: {
-      fuime: { legalName: "Ninth Street Labs LLC", parentOrganization: "ninth-street-labs" },
+      "ninth-street-labs": { legalName: "Ninth Street Labs LLC" },
+      fuime: { parentOrganization: "ninth-street-labs" },
     } as Record<string, { legalName?: string; parentOrganization?: string }>,
     /** Organizations you founded that aren't launched yet: no card, no description. */
     comingSoon: [
