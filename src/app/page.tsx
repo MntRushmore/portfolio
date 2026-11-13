@@ -6,17 +6,13 @@ import { SiteFooter } from "@/components/SiteFooter";
 import { SiteHeader } from "@/components/SiteHeader";
 import { Toolkit } from "@/components/Toolkit";
 import { Work } from "@/components/Work";
-import { site } from "@/content/site";
-import { siteUrl } from "@/lib/site";
+import type { Metadata } from "next";
+import { jsonLdScript, profileJsonLd } from "@/lib/structured-data";
+
+// Here, not in the root layout, so other pages (the 404 above all) don't inherit it.
+export const metadata: Metadata = { alternates: { canonical: "/" } };
 
 export default function Home() {
-  const personJsonLd = {
-    "@context": "https://schema.org",
-    "@type": "Person",
-    name: site.name,
-    url: siteUrl().toString(),
-  };
-
   return (
     <MotionProvider>
       <a href="#main" className="skip-link">
@@ -33,7 +29,7 @@ export default function Home() {
       <SiteFooter />
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(personJsonLd) }}
+        dangerouslySetInnerHTML={{ __html: jsonLdScript(profileJsonLd()) }}
       />
     </MotionProvider>
   );

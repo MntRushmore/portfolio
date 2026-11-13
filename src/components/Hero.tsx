@@ -33,7 +33,8 @@ export function Hero() {
           <span className="block">
             {first}
             {portrait && (
-              // Decorative here: the name beside it says who this is.
+              // Decorative for screen readers (the name beside it says who this
+              // is, and the wrapper is aria-hidden); the alt is for image search.
               <span
                 className="hero-photo"
                 aria-hidden="true"
@@ -46,7 +47,7 @@ export function Hero() {
               >
                 <Image
                   src={portrait.src}
-                  alt=""
+                  alt={portrait.alt}
                   fill
                   loading="eager"
                   sizes="(min-width: 1024px) 240px, 96px"

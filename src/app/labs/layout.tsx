@@ -8,7 +8,7 @@ export const metadata: Metadata = {
   title: {
     // absolute: skips the root layout's "%s · Rushil Chopra" template.
     absolute: `${labsSite.title} · ${site.name}`,
-    template: `%s · ${labsSite.title}`,
+    template: `%s · ${labsSite.title} · ${site.name}`,
   },
   description: labsSite.description,
   alternates: { canonical: "/" },

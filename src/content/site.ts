@@ -32,6 +32,8 @@ export type Project = {
   summary: string;
   tools: string[];
   links: Link[];
+  /** The project's own homepage, used to tie it to you in search results. */
+  website?: string;
   image?: { src: string; alt: string; width: number; height: number };
 };
 
@@ -60,7 +62,13 @@ export const site = {
    * Your live domain, used for social previews and search. Leave as-is on
    * Vercel (its production URL is picked up automatically) or set it here.
    */
-  url: "https://rushilchopra.com",
+  url: "https://www.rushilchopra.com",
+
+  /**
+   * The front page's title in search results and browser tabs. Name the
+   * things people search you by, and only roles the projects below state.
+   */
+  title: "Rushil Chopra — Founder of Agathon & fuime, Co-founder of Youth for Yoga",
 
   /** Search and social preview text. */
   description:
@@ -88,6 +96,7 @@ export const site = {
       summary:
         "A whiteboard that writes back. Students write math by hand; Agathon reads every line as it’s written, checks each step, and answers in its own handwriting, from graphs and geometry to proofs.",
       tools: ["TypeScript", "Next.js", "Supabase", "AI SDK"],
+      website: "https://www.agathon.app/",
       links: [
         { label: "Try Agathon", href: "https://www.agathon.app/" },
         {
@@ -104,6 +113,7 @@ export const site = {
       summary:
         "Invoicing, payments and books for teens who sell their work, from tutoring and lawn care to photography and DJ sets. Clients pay by card; fuime pays out the sale, less one fee, and keeps the books.",
       tools: ["JavaScript", "HTML & CSS"], // CONFIRM (from the fuime.com repo)
+      website: "https://fuime.com/",
       links: [{ label: "Visit fuime", href: "https://fuime.com/" }],
     },
     {
@@ -114,8 +124,9 @@ export const site = {
       summary:
         "A youth-led nonprofit making yoga accessible to young people through classes, leadership programs that certify teen instructors, and school workshops. 500+ students taught across 5+ schools, from San Mateo to Firozabad.",
       tools: ["Yoga", "Mindfulness", "Teaching"],
+      website: "https://www.youthforyoga.org/",
       links: [
-        { label: "Visit Youth for Yoga", href: "https://youthforyoga.org/" },
+        { label: "Visit Youth for Yoga", href: "https://www.youthforyoga.org/" },
         { label: "The India journey", href: "https://yfyindia.vercel.app/" },
       ],
     },
@@ -153,6 +164,21 @@ export const site = {
         href: "https://github.com/MntRushmore",
       },
     ] satisfies Social[] as Social[],
+  },
+
+  /**
+   * For search engines and AI answers only (structured data and /llms.txt);
+   * nothing here shows on the page. Keep it to what the page itself says.
+   */
+  seo: {
+    /** Pages elsewhere about you, beyond the profiles in `contact.socials`. */
+    profilesElsewhere: ["https://yogagivesback.org/ambassadors/rushil-chopra/"],
+    /** People named alongside you as co-founders, by project slug. */
+    coFounders: { "youth-for-yoga": ["Kashni Chopra"] } as Record<string, string[]>,
+    /** The organizations in `about.facts`, with their homepages. */
+    school: { name: "founders.school by Alpha", url: "https://founders.school/" },
+    staffAt: { name: "Hack Club", url: "https://hackclub.com/" },
+    grantFrom: { name: "1517 Fund", url: "https://www.1517fund.com/" },
   },
 
   /**

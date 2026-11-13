@@ -22,28 +22,29 @@ const hanken = Hanken_Grotesk({
 export const metadata: Metadata = {
   metadataBase: siteUrl(),
   title: {
-    default: site.name,
+    default: site.title,
     template: `%s · ${site.name}`,
   },
   description: site.description,
   applicationName: site.name,
-  authors: [{ name: site.name }],
+  authors: [{ name: site.name, url: siteUrl() }],
   creator: site.name,
-  alternates: { canonical: "/" },
   openGraph: {
     type: "profile",
     url: "/",
     siteName: site.name,
-    title: site.name,
+    title: site.title,
     description: site.description,
     locale: "en_US",
+    firstName: site.name.split(" ")[0],
+    lastName: site.name.split(" ").slice(1).join(" "),
   },
   twitter: {
     card: "summary_large_image",
-    title: site.name,
+    title: site.title,
     description: site.description,
+    creator: `@${site.contact.socials.find((s) => s.label === "X")?.handle}`,
   },
-  robots: { index: true, follow: true },
 };
 
 export const viewport: Viewport = {
