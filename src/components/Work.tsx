@@ -52,8 +52,12 @@ export function Work() {
                     <dl className="mt-7 grid grid-cols-[auto_1fr] gap-x-6 gap-y-3 border-t-2 border-umber pt-5 text-[length:var(--t-small)]">
                       <dt className="font-medium text-ink-2">Role</dt>
                       <dd>{project.role}</dd>
-                      <dt className="font-medium text-ink-2">Year</dt>
-                      <dd className="tabular-nums">{project.year}</dd>
+                      {project.year && (
+                        <>
+                          <dt className="font-medium text-ink-2">Year</dt>
+                          <dd className="tabular-nums">{project.year}</dd>
+                        </>
+                      )}
                       {project.tools.length > 0 && (
                         <>
                           <dt className="font-medium text-ink-2">Tools</dt>

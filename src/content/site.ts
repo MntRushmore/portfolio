@@ -14,6 +14,7 @@
  *  Tips
  *  - Keep `tagline` to one line (about 8–14 words).
  *  - Projects render in the order listed. Three is the sweet spot; 2–5 work.
+ *    (Five now: the last two have no year, so that row is left off.)
  *  - Tools listed under each project build the Toolkit index automatically,
  *    so spell each tool the same way everywhere ("TypeScript", not "TS").
  *  - Project images: put files in /public/work and set
@@ -27,7 +28,8 @@ export type Project = {
   /** Used for the in-page anchor (#work-<slug>). Lowercase, no spaces. */
   slug: string;
   title: string;
-  year: string;
+  /** Leave out if there's no year to state; the row is then left off. */
+  year?: string;
   role: string;
   summary: string;
   tools: string[];
@@ -130,6 +132,27 @@ export const site = {
         { label: "The India journey", href: "https://yfyindia.vercel.app/" },
       ],
     },
+    {
+      slug: "kids-learn-biz",
+      title: "Kids Learn Biz",
+      role: "Founder",
+      // From kidslearnbiz.com's own description.
+      summary: "A live online business workshop for ages 7 to 13.",
+      tools: [],
+      website: "https://www.kidslearnbiz.com/",
+      links: [{ label: "Visit Kids Learn Biz", href: "https://www.kidslearnbiz.com/" }],
+    },
+    {
+      slug: "ninth-street-labs",
+      title: "Ninth Street Labs",
+      role: "Founder",
+      // From ninthstreetlabs.com's own copy.
+      summary:
+        "Children’s business fairs, teen startup programs and AI-powered education tools that help young minds turn ideas into real ventures.",
+      tools: [],
+      website: "https://ninthstreetlabs.com/",
+      links: [{ label: "Visit Ninth Street Labs", href: "https://ninthstreetlabs.com/" }],
+    },
   ] satisfies Project[] as Project[],
 
   toolkit: {
@@ -173,6 +196,14 @@ export const site = {
   seo: {
     /** Pages elsewhere about you, beyond the profiles in `contact.socials`. */
     profilesElsewhere: ["https://yogagivesback.org/ambassadors/rushil-chopra/"],
+    /** Extra facts about a project's organization, by project slug. */
+    orgDetails: {
+      fuime: { legalName: "Ninth Street Labs LLC", parentOrganization: "ninth-street-labs" },
+    } as Record<string, { legalName?: string; parentOrganization?: string }>,
+    /** Organizations you founded that aren't launched yet: no card, no description. */
+    comingSoon: [
+      { slug: "girl-power-fit", name: "Girl Power Fit", url: "https://www.girlpowerfit.com/" },
+    ],
     /** People named alongside you as co-founders, by project slug. */
     coFounders: { "youth-for-yoga": ["Kashni Chopra"] } as Record<string, string[]>,
     /** The organizations in `about.facts`, with their homepages. */

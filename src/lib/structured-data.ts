@@ -21,17 +21,30 @@ export function profileJsonLd() {
 
   const projects = site.projects.filter((p) => p.website && /founder/i.test(p.role));
 
-  const organizations = projects.map((p) => ({
-    "@type": "Organization",
-    "@id": ids.org(p.slug),
-    name: p.title,
-    url: p.website,
-    description: p.summary,
-    founder: [
-      { "@id": ids.person },
-      ...(seo.coFounders[p.slug] ?? []).map((name) => ({ "@type": "Person", name })),
-    ],
-  }));
+  // Every organization founded: the founder projects, then any not launched yet.
+  const founded = [
+    ...projects.map((p) => ({ slug: p.slug, name: p.title, url: p.website, description: p.summary, role: p.role })),
+    ...seo.comingSoon.map((o) => ({ ...o, description: undefined, role: "Founder" })),
+  ];
+
+  const organizations = founded.map((o) => {
+    const details = seo.orgDetails[o.slug] ?? {};
+    return {
+      "@type": "Organization",
+      "@id": ids.org(o.slug),
+      name: o.name,
+      ...(details.legalName && { legalName: details.legalName }),
+      url: o.url,
+      ...(o.description && { description: o.description }),
+      founder: [
+        { "@id": ids.person },
+        ...(seo.coFounders[o.slug] ?? []).map((name) => ({ "@type": "Person", name })),
+      ],
+      ...(details.parentOrganization && {
+        parentOrganization: { "@id": ids.org(details.parentOrganization) },
+      }),
+    };
+  });
 
   const person = {
     "@type": "Person",
@@ -50,10 +63,10 @@ export function profileJsonLd() {
     email: `mailto:${site.contact.email}`,
     // Roles exactly as the Work section and About facts state them.
     memberOf: [
-      ...projects.map((p) => ({
+      ...founded.map((o) => ({
         "@type": "OrganizationRole",
-        roleName: p.role,
-        memberOf: { "@id": ids.org(p.slug) },
+        roleName: o.role,
+        memberOf: { "@id": ids.org(o.slug) },
       })),
       {
         "@type": "OrganizationRole",
