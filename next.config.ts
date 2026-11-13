@@ -12,6 +12,17 @@ const nextConfig: NextConfig = {
   devIndicators: false,
   poweredByHeader: false,
 
+  async headers() {
+    return [
+      {
+        // A lab's raw HTML is shown inside its lab page. Index it as part of
+        // that page, not as a bare duplicate at /lab-files/….
+        source: "/lab-files/:slug/index.html",
+        headers: [{ key: "X-Robots-Tag", value: "noindex, indexifembedded" }],
+      },
+    ];
+  },
+
   async redirects() {
     // rushilchopra.com/labs/* lives on the subdomain.
     return [
