@@ -1,6 +1,6 @@
 # Rushil Chopra
 
-> Rushil Chopra is a high schooler building tools that help teens learn and do more. He is the founder of Agathon, fuime, Kids Learn Biz and Ninth Street Labs, and the co-founder of Youth for Yoga. He is a junior at founders.school by Alpha, staff at Hack Club, and a 1517 Fund grantee.
+> Rushil Chopra is a high schooler building tools that help teens learn and do more. He is the founder of Agathon, fuime and Ninth Street Labs, and the co-founder of Youth for Yoga and Kids Learn Biz. He is a junior at founders.school by Alpha, staff at Hack Club, and a 1517 Fund grantee.
 
 Rushil is based in San Francisco and New York City. This site (https://www.rushilchopra.com) is his personal homepage; his experiments live at https://labs.rushilchopra.com. The fastest way to reach him is email: rushil.chopra@alpha.school.
 
@@ -9,7 +9,7 @@ Rushil is based in San Francisco and New York City. This site (https://www.rushi
 - [Agathon](https://www.agathon.app/): Founder (2025–26). A whiteboard that writes back: students write math by hand, Agathon reads every line as it's written, checks each step, and answers in its own handwriting, from graphs and geometry to proofs.
 - [fuime](https://fuime.com/): Founder (2026). Invoicing, payments and books for teens who sell their work, from tutoring and lawn care to photography and DJ sets. Clients pay by card; fuime pays out the sale, less one fee, and keeps the books. Its legal entity is Ninth Street Labs LLC.
 - [Youth for Yoga](https://www.youthforyoga.org/): Co-founder, with Kashni Chopra (2024–). A youth-led nonprofit making yoga accessible to young people through classes, leadership programs that certify teen instructors, and school workshops. 500+ students taught across 5+ schools, from San Mateo to Firozabad, India.
-- [Kids Learn Biz](https://www.kidslearnbiz.com/): Founder. A live online business workshop for ages 7 to 13.
+- [Kids Learn Biz](https://www.kidslearnbiz.com/): Co-founder, with Kashni Chopra. A live online business workshop for ages 7 to 13.
 - [Ninth Street Labs](https://ninthstreetlabs.com/): Founder. A youth entrepreneurship education organization running children's business fairs, teen startup programs and AI-powered education tools that help young minds turn ideas into real ventures.
 - [Girl Power Fit](https://www.girlpowerfit.com/): Founder. Coming soon.
 

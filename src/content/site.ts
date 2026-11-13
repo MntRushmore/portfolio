@@ -135,7 +135,7 @@ export const site = {
     {
       slug: "kids-learn-biz",
       title: "Kids Learn Biz",
-      role: "Founder",
+      role: "Co-founder",
       // From kidslearnbiz.com's own description.
       summary: "A live online business workshop for ages 7 to 13.",
       tools: [],
@@ -206,7 +206,7 @@ export const site = {
       { slug: "girl-power-fit", name: "Girl Power Fit", url: "https://www.girlpowerfit.com/" },
     ],
     /** People named alongside you as co-founders, by project slug. */
-    coFounders: { "youth-for-yoga": ["Kashni Chopra"] } as Record<string, string[]>,
+    coFounders: { "youth-for-yoga": ["Kashni Chopra"], "kids-learn-biz": ["Kashni Chopra"] } as Record<string, string[]>,
     /** The organizations in `about.facts`, with their homepages. */
     school: { name: "founders.school by Alpha", url: "https://founders.school/" },
     staffAt: { name: "Hack Club", url: "https://hackclub.com/" },
