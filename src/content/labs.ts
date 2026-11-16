@@ -224,4 +224,18 @@ export const labs: Lab[] = [
     cover: "/lab-files/plink/cover.jpg",
     draft: true,
   },
+  {
+    slug: "sargam",
+    title: "Sargam",
+    date: "2026-11-16",
+    summary:
+      "Drop in a song and it draws the melody as a sargam: every swara is a string, the notes scroll into a playhead, and a red line follows the pitch.",
+    about: [
+      "Pick a song on your device, or play the short demo. The pitch is read in the browser, on this machine, and named as swaras against a tonic it guesses from the tune. If the guess is off, set Sa yourself and nudge it by a few cents. Choose a raag and the notes snap to that scale.",
+      "The red line is the pitch itself, glides included. A note arriving at the playhead plucks its string, a fast run is called a taan, and a phrase sung twice gets a small bracket. Space plays and pauses. C hides the buttons, for a clean recording.",
+    ],
+    tags: ["music", "web audio", "canvas"],
+    kind: "page",
+    cover: "/lab-files/sargam/cover.jpg",
+  },
 ];
